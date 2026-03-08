@@ -1,681 +1,694 @@
-import React, { useState, useEffect } from "react";
-import { cn, fetchApi } from "../utils/api";
-import { motion } from "motion/react";
+import React, { useEffect, useState } from "react";
+import { api } from "../services/api";
+import { useAuthStore } from "../store/authStore";
 import {
-  LayoutDashboard,
-  Book,
-  CheckCircle2,
-  Clock,
-  Trophy,
-  Bell,
-  ChevronRight,
-  TrendingUp,
-  Star,
-  Lightbulb,
-  Target,
-  BarChart3,
-  BookOpen,
-  Calendar,
-  ListTodo,
-  Plus,
-  Trash2,
-  AlertCircle,
-} from "lucide-react";
-import {
-  AreaChart,
-  Area,
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  BarChart,
-  Bar,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  Radar,
   Cell,
+  PieChart,
+  Pie,
 } from "recharts";
+import {
+  TrendingUp,
+  Users,
+  BookOpen,
+  CheckCircle,
+  AlertTriangle,
+  Target,
+  BrainCircuit,
+  Calendar,
+  FileText,
+  Star,
+  X,
+  ChevronRight,
+  Sparkles,
+  ShieldCheck,
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
-export default function StudentDashboard() {
-  const [data, setData] = useState(null);
+export default function StudentDashboard({
+  setActiveTab,
+}) {
+  const { user } = useAuthStore();
+  const [analytics, setAnalytics] = useState(null);
+  const [assignments, setAssignments] = useState([]);
   const [selectedSubject, setSelectedSubject] = useState(null);
-  const [newPlannerTask, setNewPlannerTask] = useState({
-    task: "",
-    priority: "Medium",
-    due_date: "",
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [requestData, setRequestData] = useState({
+    field: "marks",
+    newValue: "",
+    subjectId: "",
   });
-  const [isAddingTask, setIsAddingTask] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [latestNotification, setLatestNotification] = useState(null);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await fetchApi("/api/student/dashboard");
-        setData(res);
-        if (res.subjects.length > 0) setSelectedSubject(res.subjects[0]);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    load();
-  }, []);
+    fetchData();
+    fetchNotifications();
+  }, [user]);
 
-  if (!data)
-    return <div className="p-8 text-center dark:text-white">Loading...</div>;
-
-  const handleCompleteTask = async (taskId) => {
+  const fetchNotifications = async () => {
     try {
-      await fetchApi("/api/student/complete-task", {
-        method: "POST",
-        body: JSON.stringify({ taskId }),
-      });
-      // Refresh data
-      const res = await fetchApi("/api/student/dashboard");
-      setData(res);
+      const res = await api.getNotifications();
+      const unread = res.filter((n) => !n.is_read);
+      if (unread.length > 0) {
+        setLatestNotification(unread[0]);
+      }
     } catch (err) {
       console.error(err);
     }
   };
 
-  const overallPerfData = data.subjects.map((s) => ({
-    name: s.name,
-    marks: s.internal_marks,
-    attendance: s.attendance_percent,
+  const fetchData = async () => {
+    if (user) {
+      const [anaRes, assignRes] = await Promise.all([
+        api.getStudentAnalytics(user.id),
+        api.getStudentAssignments(),
+      ]);
+      setAnalytics(anaRes);
+      setAssignments(assignRes);
+      setLoading(false);
+    }
+  };
+
+  const handleSubmitRequest = async (e) => {
+    e.preventDefault();
+    try {
+      await api.submitVerificationRequest({
+        field: requestData.field,
+        old_value: {}, // Simplified for now
+        new_value:
+          requestData.field === "marks"
+            ? {
+                marks: parseInt(requestData.newValue),
+                subject_id: parseInt(requestData.subjectId),
+              }
+            : requestData.field === "cgpa"
+              ? {
+                  cgpa: parseFloat(requestData.newValue),
+                  semester: user.semester,
+                }
+              : {
+                  status: requestData.newValue,
+                  subject_id: parseInt(requestData.subjectId),
+                },
+        subject_id: requestData.subjectId
+          ? parseInt(requestData.subjectId)
+          : null,
+      });
+      setShowRequestModal(false);
+      alert("Request submitted for approval!");
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  if (loading) return <div>Loading dashboard...</div>;
+
+  const radarData = analytics.marks.map((m) => ({
+    subject: m.subject,
+    score: m.marks,
+    fullMark: 100,
   }));
 
-  const atRisk = data.subjects.filter(
-    (s) => s.attendance_percent < 75 || s.internal_marks < 40,
-  );
-
-  const handleUpdateRating = async (subjectId, rating) => {
-    try {
-      // Update local state immediately for responsiveness
-      const updatedSubjects = data.subjects.map((s) =>
-        s.id === subjectId ? { ...s, rating } : s,
-      );
-      setData({ ...data, subjects: updatedSubjects });
-      if (selectedSubject?.id === subjectId) {
-        setSelectedSubject({ ...selectedSubject, rating });
-      }
-
-      // Call real API
-      await fetchApi(`/api/student/subject/${subjectId}/rating`, {
-        method: "POST",
-        body: JSON.stringify({ rating }),
-      });
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleAddPlannerTask = async () => {
-    if (!newPlannerTask.task || !newPlannerTask.due_date) return;
-    try {
-      await fetchApi("/api/student/study-planner", {
-        method: "POST",
-        body: JSON.stringify(newPlannerTask),
-      });
-      const res = await fetchApi("/api/student/dashboard");
-      setData(res);
-      setNewPlannerTask({ task: "", priority: "Medium", due_date: "" });
-      setIsAddingTask(false);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleTogglePlannerTask = async (id) => {
-    try {
-      await fetchApi(`/api/student/study-planner/${id}/toggle`, {
-        method: "POST",
-      });
-      const res = await fetchApi("/api/student/dashboard");
-      setData(res);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleDeletePlannerTask = async (id) => {
-    try {
-      await fetchApi(`/api/student/study-planner/${id}`, { method: "DELETE" });
-      const res = await fetchApi("/api/student/dashboard");
-      setData(res);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const StarRating = ({ rating, onChange, interactive = false }) => (
-    <div className="flex gap-1">
-      {[1, 2, 3, 4, 5].map((star) => (
-        <Star
-          key={star}
-          className={cn(
-            "w-4 h-4 transition-all",
-            star <= rating
-              ? "fill-amber-400 text-amber-400"
-              : "text-slate-300 dark:text-slate-700",
-            interactive && "cursor-pointer hover:scale-125",
-          )}
-          onClick={() => interactive && onChange?.(star)}
-        />
-      ))}
-    </div>
-  );
+  const COLORS = ["#3b82f6", "#f97316", "#eab308", "#ec4899"];
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto pb-24 md:pb-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+    <div className="space-y-8">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-            My Learning Space
+          <h1 className="text-2xl font-bold text-slate-900">
+            Student Dashboard
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm">
-            Track your progress and level up
-          </p>
+          <p className="text-slate-500">Welcome back, {user?.name}!</p>
         </div>
-        <div className="flex gap-4">
-          <div className="bg-white dark:bg-slate-900 p-3 px-5 rounded-[1.5rem] border border-slate-200 dark:border-slate-800 flex items-center gap-3 shadow-sm">
-            <div className="p-2 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-xl">
-              <Trophy className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest">
-                Points
-              </p>
-              <p className="text-lg font-black dark:text-white">
-                {data.tasks
-                  .filter((t) => t.status === "completed")
-                  .reduce((acc, t) => acc + t.points, 0)}
-              </p>
-            </div>
-          </div>
-        </div>
+        <button
+          onClick={() => setShowRequestModal(true)}
+          className="bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 hover:bg-slate-800 transition-all shadow-lg"
+        >
+          <ShieldCheck size={20} />
+          Request Data Change
+        </button>
       </div>
 
-      {atRisk.length > 0 && (
+      {latestNotification && (
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8 p-5 bg-red-500/10 border border-red-500/20 rounded-[2rem] flex items-start gap-4 backdrop-blur-sm"
+          className="bg-blue-600 text-white p-4 rounded-2xl flex items-center justify-between shadow-xl shadow-blue-100"
         >
-          <div className="p-3 bg-red-500 text-white rounded-2xl shadow-lg shadow-red-500/20">
-            <Bell className="w-6 h-6" />
+          <div className="flex items-center gap-3">
+            <Sparkles className="text-blue-200" />
+            <p className="font-bold text-sm">{latestNotification.message}</p>
           </div>
-          <div>
-            <h3 className="font-black text-red-600 dark:text-red-400 tracking-tight">
-              Academic Alert
-            </h3>
-            <p className="text-sm text-red-600/80 dark:text-red-400/80 font-medium">
-              You are currently at risk in{" "}
-              {atRisk.map((s) => s.name).join(", ")}. Focus on completing your
-              revision tasks.
-            </p>
-          </div>
+          <button
+            onClick={() => {
+              api.markNotificationAsRead(latestNotification.id);
+              setLatestNotification(null);
+            }}
+            className="text-xs font-bold bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg transition-all"
+          >
+            Dismiss
+          </button>
         </motion.div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-xl">
-          <div className="flex items-center justify-between mb-8">
-            <h3 className="text-xl font-black dark:text-white flex items-center gap-2 tracking-tight">
-              <Calendar className="w-6 h-6 text-indigo-500" />
-              Weekly Timetable
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard
+          title="Current CGPA"
+          value={
+            analytics.cgpaTrend.length > 0
+              ? analytics.cgpaTrend[analytics.cgpaTrend.length - 1].cgpa
+              : "N/A"
+          }
+          icon={Target}
+          color="blue"
+        />
+        <StatCard
+          title="Attendance"
+          value={`${analytics.attendanceRate.toFixed(1)}%`}
+          icon={CheckCircle}
+          color={analytics.attendanceRate < 75 ? "orange" : "emerald"}
+          trend={
+            analytics.attendanceRate < 75
+              ? "Warning: Low attendance"
+              : "Safe zone"
+          }
+        />
+        <StatCard
+          title="Prediction"
+          value={analytics.prediction}
+          icon={BrainCircuit}
+          color={analytics.prediction === "At Risk" ? "pink" : "blue"}
+        />
+        <StatCard
+          title="Avg Marks"
+          value={
+            analytics.marks.length > 0
+              ? (
+                  analytics.marks.reduce((a, b) => a + b.marks, 0) /
+                  analytics.marks.length
+                ).toFixed(1)
+              : "0"
+          }
+          icon={TrendingUp}
+          color="yellow"
+        />
+      </div>
+
+      {/* Hero Performance Graph */}
+      <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h3 className="text-xl font-bold text-slate-900">
+              Overall Academic Performance
             </h3>
-            <div className="flex gap-2">
-              {["Mon", "Tue", "Wed", "Thu", "Fri"].map((d) => (
-                <span
-                  key={d}
-                  className="px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full text-[10px] font-bold text-slate-500 uppercase tracking-widest"
-                >
-                  {d}
-                </span>
-              ))}
-            </div>
+            <p className="text-slate-500">Your progress across all semesters</p>
           </div>
-          <div className="overflow-x-auto no-scrollbar">
-            <div className="min-w-[600px] grid grid-cols-5 gap-4">
-              {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"].map(
-                (day) => (
-                  <div key={day} className="space-y-3">
-                    {data.timetable
-                      .filter((t) => t.day === day)
-                      .map((slot) => (
-                        <div
-                          key={slot.id}
-                          className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800"
-                        >
-                          <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">
-                            {slot.start_time}
-                          </p>
-                          <p className="text-xs font-bold dark:text-white truncate">
-                            {slot.subject}
-                          </p>
-                          <p className="text-[9px] text-slate-400 font-medium">
-                            {slot.room}
-                          </p>
-                        </div>
-                      ))}
-                  </div>
-                ),
-              )}
-            </div>
+          <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-2xl font-bold">
+            <TrendingUp size={20} />
+            <span>+12% vs last sem</span>
           </div>
         </div>
-
-        <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-xl flex flex-col">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-black dark:text-white flex items-center gap-2 tracking-tight">
-              <ListTodo className="w-6 h-6 text-emerald-500" />
-              Study Planner
-            </h3>
-            <button
-              onClick={() => setIsAddingTask(!isAddingTask)}
-              className="p-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
-
-          {isAddingTask && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              className="mb-6 space-y-3 p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700"
-            >
-              <input
-                type="text"
-                placeholder="What to study?"
-                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-2 text-sm dark:text-white"
-                value={newPlannerTask.task}
-                onChange={(e) =>
-                  setNewPlannerTask({ ...newPlannerTask, task: e.target.value })
-                }
+        <div className="h-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={analytics.cgpaTrend}>
+              <CartesianGrid
+                strokeDasharray="3 3"
+                vertical={false}
+                stroke="#f1f5f9"
               />
-              <div className="flex gap-2">
-                <input
-                  type="date"
-                  className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-2 text-xs dark:text-white"
-                  value={newPlannerTask.due_date}
-                  onChange={(e) =>
-                    setNewPlannerTask({
-                      ...newPlannerTask,
-                      due_date: e.target.value,
-                    })
-                  }
-                />
-                <select
-                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-2 text-xs dark:text-white"
-                  value={newPlannerTask.priority}
-                  onChange={(e) =>
-                    setNewPlannerTask({
-                      ...newPlannerTask,
-                      priority: e.target.value,
-                    })
-                  }
-                >
-                  <option>Low</option>
-                  <option>Medium</option>
-                  <option>High</option>
-                </select>
-              </div>
-              <button
-                onClick={handleAddPlannerTask}
-                className="w-full py-2 bg-indigo-600 text-white rounded-xl font-bold text-xs"
-              >
-                Add to Planner
-              </button>
-            </motion.div>
-          )}
-
-          <div className="space-y-3 flex-1 overflow-y-auto no-scrollbar max-h-[400px]">
-            {data.studyPlanner.map((item) => (
-              <div
-                key={item.id}
-                className={`p-4 rounded-2xl border flex items-center justify-between gap-3 transition-all ${
-                  item.status === "completed"
-                    ? "bg-emerald-500/5 border-emerald-500/10 opacity-60"
-                    : "bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => handleTogglePlannerTask(item.id)}
-                    className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
-                      item.status === "completed"
-                        ? "bg-emerald-500 border-emerald-500 text-white"
-                        : "border-slate-300 dark:border-slate-600"
-                    }`}
-                  >
-                    {item.status === "completed" && (
-                      <CheckCircle2 className="w-3 h-3" />
-                    )}
-                  </button>
-                  <div>
-                    <p
-                      className={`text-sm font-bold dark:text-white ${item.status === "completed" ? "line-through" : ""}`}
-                    >
-                      {item.task}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span
-                        className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${
-                          item.priority === "High"
-                            ? "bg-red-100 text-red-600"
-                            : item.priority === "Medium"
-                              ? "bg-amber-100 text-amber-600"
-                              : "bg-blue-100 text-blue-600"
-                        }`}
-                      >
-                        {item.priority}
-                      </span>
-                      <span className="text-[9px] text-slate-400 font-bold">
-                        {item.due_date}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => handleDeletePlannerTask(item.id)}
-                  className="p-2 text-slate-400 hover:text-red-500 transition-all"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-          </div>
+              <XAxis
+                dataKey="semester"
+                stroke="#94a3b8"
+                fontSize={12}
+                tickFormatter={(v) => `Sem ${v}`}
+              />
+              <YAxis stroke="#94a3b8" fontSize={12} domain={[0, 10]} />
+              <Tooltip
+                cursor={{ fill: "#f8fafc" }}
+                contentStyle={{
+                  borderRadius: "20px",
+                  border: "none",
+                  boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1)",
+                }}
+              />
+              <Bar dataKey="cgpa" fill="#3b82f6" radius={[10, 10, 0, 0]}>
+                {analytics.cgpaTrend.map((entry, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={
+                      entry.cgpa >= 8
+                        ? "#10b981"
+                        : entry.cgpa >= 6
+                          ? "#3b82f6"
+                          : "#f43f5e"
+                    }
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-xl">
-          <h3 className="text-xl font-black mb-8 dark:text-white flex items-center gap-2 tracking-tight">
-            <TrendingUp className="w-6 h-6 text-indigo-500" />
-            Performance Trend
+      {/* Subject Slots */}
+      <div className="space-y-6">
+        <h3 className="text-xl font-bold text-slate-900">
+          Subject-wise Analysis
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {analytics.marks.map((m) => (
+            <motion.button
+              key={m.subject}
+              whileHover={{ y: -5 }}
+              onClick={() => setSelectedSubject(m)}
+              className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition-all text-left group"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl group-hover:scale-110 transition-transform">
+                  <BookOpen size={24} />
+                </div>
+                <div className="flex items-center gap-1">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Star
+                      key={i}
+                      size={12}
+                      className={
+                        i <= m.marks / 20
+                          ? "text-yellow-400 fill-yellow-400"
+                          : "text-slate-200"
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
+              <h4 className="font-bold text-slate-900 mb-1">{m.subject}</h4>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-slate-500">
+                  {m.marks >= 40 ? "Pass" : "Fail"}
+                </p>
+                <span
+                  className={`text-xs font-bold px-2 py-1 rounded-lg ${
+                    m.marks >= 75
+                      ? "bg-emerald-50 text-emerald-600"
+                      : m.marks >= 40
+                        ? "bg-blue-50 text-blue-600"
+                        : "bg-red-50 text-red-600"
+                  }`}
+                >
+                  {m.marks}%
+                </span>
+              </div>
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      {/* Subject Detail Modal */}
+      <AnimatePresence>
+        {selectedSubject && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white w-full max-w-4xl rounded-[3rem] p-8 shadow-2xl max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-4">
+                  <div className="p-4 bg-blue-600 text-white rounded-3xl">
+                    <BookOpen size={32} />
+                  </div>
+                  <div>
+                    <h2 className="text-3xl font-black text-slate-900">
+                      {selectedSubject.subject}
+                    </h2>
+                    <p className="text-slate-500 font-medium">
+                      Detailed Analysis & Resources
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedSubject(null)}
+                  className="p-3 hover:bg-slate-100 rounded-full"
+                >
+                  <X size={32} />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                  <p className="text-xs font-bold text-slate-400 uppercase mb-2">
+                    Attendance
+                  </p>
+                  <p className="text-3xl font-black text-slate-900">92%</p>
+                  <div className="mt-2 w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                    <div className="bg-emerald-500 h-full w-[92%]"></div>
+                  </div>
+                </div>
+                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                  <p className="text-xs font-bold text-slate-400 uppercase mb-2">
+                    Internal Marks
+                  </p>
+                  <p className="text-3xl font-black text-slate-900">
+                    {selectedSubject.marks}/100
+                  </p>
+                  <p className="text-xs font-bold text-emerald-500 mt-1">
+                    Status:{" "}
+                    {selectedSubject.marks >= 40 ? "Cleared" : "At Risk"}
+                  </p>
+                </div>
+                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                  <p className="text-xs font-bold text-slate-400 uppercase mb-2">
+                    Prediction
+                  </p>
+                  <p
+                    className={`text-3xl font-black ${selectedSubject.marks >= 75 ? "text-emerald-600" : "text-blue-600"}`}
+                  >
+                    {selectedSubject.marks >= 75
+                      ? "Distinction"
+                      : "First Class"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-blue-600 p-8 rounded-[2.5rem] text-white">
+                  <h4 className="text-xl font-bold mb-4 flex items-center gap-2">
+                    <Sparkles size={24} />
+                    Study Resources
+                  </h4>
+                  <div className="space-y-3">
+                    {[
+                      "Lecture Notes.pdf",
+                      "Practice Quiz #1",
+                      "Flashcard Set",
+                      "Revision Guide",
+                    ].map((item) => (
+                      <button
+                        key={item}
+                        className="w-full p-4 bg-white/10 hover:bg-white/20 rounded-2xl border border-white/10 text-left flex items-center justify-between transition-all"
+                      >
+                        <span className="font-bold">{item}</span>
+                        <ChevronRight size={18} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white">
+                  <h4 className="text-xl font-bold mb-4 flex items-center gap-2">
+                    <BrainCircuit size={24} className="text-emerald-400" />
+                    AI Improvement Tips
+                  </h4>
+                  <ul className="space-y-4">
+                    <li className="flex gap-3">
+                      <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full mt-2 shrink-0"></div>
+                      <p className="text-sm opacity-80">
+                        Focus on the "Graph Theory" module, your quiz scores
+                        were slightly lower there.
+                      </p>
+                    </li>
+                    <li className="flex gap-3">
+                      <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full mt-2 shrink-0"></div>
+                      <p className="text-sm opacity-80">
+                        Complete 2 more flashcard sets this week to boost your
+                        memory retention.
+                      </p>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Radar Chart Strengths */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+          <h3 className="text-lg font-bold text-slate-900 mb-6">
+            Skill Strength Analysis
           </h3>
-          <div className="h-[250px] md:h-[300px]">
+          <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={overallPerfData}>
-                <defs>
-                  <linearGradient id="colorMarks" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  vertical={false}
-                  stroke="#e2e8f0"
+              <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
+                <PolarGrid stroke="#f1f5f9" />
+                <PolarAngleAxis
+                  dataKey="subject"
+                  stroke="#94a3b8"
+                  fontSize={12}
                 />
-                <XAxis
-                  dataKey="name"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#94a3b8", fontSize: 10 }}
+                <Radar
+                  name="Score"
+                  dataKey="score"
+                  stroke="#3b82f6"
+                  fill="#3b82f6"
+                  fillOpacity={0.6}
                 />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#94a3b8", fontSize: 10 }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    borderRadius: "20px",
-                    border: "none",
-                    boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1)",
-                    padding: "12px",
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="marks"
-                  stroke="#6366f1"
-                  fillOpacity={1}
-                  fill="url(#colorMarks)"
-                  strokeWidth={4}
-                />
-              </AreaChart>
+              </RadarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-xl">
-          <h3 className="text-xl font-black mb-6 dark:text-white flex items-center gap-2 tracking-tight">
-            <Target className="w-6 h-6 text-emerald-500" />
-            Daily Goals
-          </h3>
-          <div className="space-y-3">
-            {data.tasks.map((t) => (
-              <motion.div
-                key={t.id}
-                whileHover={{ x: 5 }}
-                className={`p-4 rounded-2xl border transition-all ${
-                  t.status === "completed"
-                    ? "bg-emerald-500/5 border-emerald-500/10 opacity-60"
-                    : "bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700"
-                }`}
+        {/* AI Insights */}
+        <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-3xl text-white shadow-xl relative overflow-hidden">
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-6">
+              <BrainCircuit className="w-8 h-8" />
+              <h3 className="text-xl font-bold">AI Performance Insights</h3>
+            </div>
+            <div className="space-y-4">
+              <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/20">
+                <p className="text-sm font-medium opacity-80 mb-1">Status</p>
+                <p className="text-lg font-bold">
+                  Your performance is {analytics.prediction}
+                </p>
+              </div>
+              <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/20">
+                <p className="text-sm font-medium opacity-80 mb-1">
+                  Recommendation
+                </p>
+                <p className="text-md">
+                  {analytics.attendanceRate < 75
+                    ? "Focus on improving your attendance to avoid warning levels."
+                    : "Maintain your current consistency. You're on the right track!"}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+        </div>
+      </div>
+
+      {/* Assignments Section */}
+      <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+              <BookOpen size={24} />
+            </div>
+            <h3 className="text-xl font-bold text-slate-900">
+              Your Assignments
+            </h3>
+          </div>
+          <button
+            onClick={() => setActiveTab?.("Assignments")}
+            className="text-sm font-bold text-blue-600 hover:underline"
+          >
+            View All
+          </button>
+        </div>
+
+        {assignments.length === 0 ? (
+          <div className="py-12 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+            <p className="text-slate-500 italic">
+              No assignments assigned yet.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {assignments.slice(0, 3).map((assignment) => (
+              <div
+                key={assignment.id}
+                className="p-5 bg-slate-50 rounded-2xl border border-slate-100 hover:border-blue-200 transition-all group"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex gap-3">
-                    <div
-                      className={`p-2 rounded-xl ${t.status === "completed" ? "bg-emerald-500 text-white" : "bg-indigo-500 text-white"}`}
-                    >
-                      {t.type === "quiz" ? (
-                        <Book className="w-4 h-4" />
-                      ) : (
-                        <Clock className="w-4 h-4" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm font-black dark:text-white leading-tight">
-                        {t.description}
-                      </p>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                        {t.points} XP • {t.type}
-                      </p>
-                    </div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2 bg-white rounded-xl text-blue-600 shadow-sm group-hover:scale-110 transition-transform">
+                    <FileText size={18} />
                   </div>
-                  {t.status !== "completed" && (
-                    <button
-                      onClick={() => handleCompleteTask(t.id)}
-                      className="p-2 bg-white dark:bg-slate-700 rounded-xl shadow-sm hover:bg-indigo-500 hover:text-white transition-all"
-                    >
-                      <CheckCircle2 className="w-5 h-5" />
-                    </button>
-                  )}
+                  <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md">
+                    {assignment.marks} Marks
+                  </span>
                 </div>
-              </motion.div>
+                <h4 className="font-bold text-slate-900 mb-1">
+                  {assignment.title}
+                </h4>
+                <p className="text-sm text-slate-500 mb-3">
+                  Teacher: {assignment.teacher_name}
+                </p>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 bg-orange-400 rounded-full"></span>
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    Pending
+                  </span>
+                </div>
+              </div>
             ))}
           </div>
-        </div>
+        )}
       </div>
-
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-2xl font-black dark:text-white tracking-tight">
-          Subjects
-        </h3>
-        <div className="flex gap-2">
-          <div className="w-2 h-2 rounded-full bg-indigo-500" />
-          <div className="w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-700" />
-        </div>
-      </div>
-
-      <div className="flex overflow-x-auto gap-4 pb-6 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-4">
-        {data.subjects.map((s) => (
-          <motion.div
-            key={s.id}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setSelectedSubject(s)}
-            className={`flex-shrink-0 w-64 md:w-auto p-6 rounded-[2rem] border cursor-pointer transition-all relative overflow-hidden ${
-              selectedSubject?.id === s.id
-                ? "bg-indigo-600 border-indigo-500 text-white shadow-2xl shadow-indigo-500/40"
-                : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white"
-            }`}
-          >
-            {selectedSubject?.id === s.id && (
-              <div className="absolute top-0 right-0 p-4">
-                <Star className="w-5 h-5 text-white/20 fill-white/20" />
-              </div>
-            )}
-            <h4 className="font-black text-lg mb-2 tracking-tight">{s.name}</h4>
-            <div className="mb-4">
-              <StarRating rating={s.rating || 3} />
-            </div>
-            <div className="flex justify-between items-end">
-              <div>
-                <p
-                  className={`text-[10px] font-black uppercase tracking-widest ${selectedSubject?.id === s.id ? "text-indigo-100" : "text-slate-400"}`}
+      {/* Request Modal */}
+      <AnimatePresence>
+        {showRequestModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-slate-900">
+                  Request Change
+                </h2>
+                <button
+                  onClick={() => setShowRequestModal(false)}
+                  className="p-2 hover:bg-slate-100 rounded-full"
                 >
-                  Attendance
-                </p>
-                <p className="text-2xl font-black">{s.attendance_percent}%</p>
+                  <X size={24} />
+                </button>
               </div>
-              <div
-                className={`p-2 rounded-xl ${selectedSubject?.id === s.id ? "bg-white/20" : "bg-slate-100 dark:bg-slate-800"}`}
-              >
-                <ChevronRight className="w-5 h-5" />
-              </div>
-            </div>
-          </motion.div>
-        ))}
-      </div>
 
-      {selectedSubject && (
-        <motion.div
-          key={selectedSubject.id}
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-slate-900 p-6 md:p-10 rounded-[3rem] border border-slate-200 dark:border-slate-800 shadow-2xl mt-4"
-        >
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
-            <div>
-              <h3 className="text-3xl font-black dark:text-white tracking-tight mb-2">
-                {selectedSubject.name}
-              </h3>
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                  Expected Rating:
-                </span>
-                <StarRating
-                  rating={selectedSubject.rating || 3}
-                  interactive
-                  onChange={(r) => handleUpdateRating(selectedSubject.id, r)}
-                />
-              </div>
-            </div>
-            <div className="flex gap-4">
-              <div className="p-4 bg-indigo-500/10 rounded-3xl border border-indigo-500/20 text-center min-w-[100px]">
-                <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">
-                  Internals
-                </p>
-                <p className="text-3xl font-black text-indigo-600">
-                  {selectedSubject.internal_marks}
-                </p>
-              </div>
-              <div className="p-4 bg-emerald-500/10 rounded-3xl border border-emerald-500/20 text-center min-w-[100px]">
-                <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">
-                  Attendance
-                </p>
-                <p className="text-3xl font-black text-emerald-600">
-                  {selectedSubject.attendance_percent}%
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-            <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800">
-              <h4 className="font-black mb-6 dark:text-white flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-indigo-500" />
-                Performance Metrics
-              </h4>
-              <div className="h-[250px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={[
-                      {
-                        name: "You",
-                        value: selectedSubject.internal_marks,
-                        color: "#6366f1",
-                      },
-                      { name: "Avg", value: 72, color: "#94a3b8" },
-                      { name: "Top", value: 95, color: "#10b981" },
-                    ]}
+              <form onSubmit={handleSubmitRequest} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Field to Change
+                  </label>
+                  <select
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                    value={requestData.field}
+                    onChange={(e) =>
+                      setRequestData({ ...requestData, field: e.target.value })
+                    }
                   >
-                    <XAxis
-                      dataKey="name"
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{ fontSize: 12, fontWeight: 700 }}
-                    />
-                    <YAxis hide />
-                    <Tooltip cursor={{ fill: "transparent" }} />
-                    <Bar dataKey="value" radius={[15, 15, 15, 15]} barSize={50}>
-                      {[0, 1, 2].map((entry, index) => (
-                        <Cell
-                          key={`cell-${index}`}
-                          fill={["#6366f1", "#94a3b8", "#10b981"][index]}
-                        />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              <div className="p-8 bg-gradient-to-br from-slate-900 to-slate-800 rounded-[2.5rem] text-white relative overflow-hidden">
-                <Lightbulb className="absolute -right-4 -top-4 w-24 h-24 text-white/10 -rotate-12" />
-                <h4 className="font-black mb-4 flex items-center gap-2 text-amber-400">
-                  AI Insights
-                </h4>
-                <div className="space-y-4">
-                  <p className="text-sm text-slate-300 leading-relaxed">
-                    Based on your current score of{" "}
-                    <span className="text-white font-bold">
-                      {selectedSubject.internal_marks}
-                    </span>
-                    , you are performing{" "}
-                    <span className="text-emerald-400 font-bold">
-                      above average
-                    </span>
-                    . To reach the top 5%, focus on the following topics:
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {["Advanced Logic", "System Design", "Optimization"].map(
-                      (tag) => (
-                        <span
-                          key={tag}
-                          className="px-3 py-1 bg-white/10 rounded-full text-[10px] font-bold uppercase tracking-wider"
-                        >
-                          {tag}
-                        </span>
-                      ),
-                    )}
-                  </div>
+                    <option value="marks">Internal Marks</option>
+                    <option value="attendance">Attendance</option>
+                    <option value="cgpa">CGPA</option>
+                  </select>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="p-5 bg-indigo-600 text-white rounded-[1.5rem] font-black text-sm shadow-xl shadow-indigo-500/20 flex flex-col items-center gap-2"
+                {(requestData.field === "marks" ||
+                  requestData.field === "attendance") && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Subject
+                    </label>
+                    <select
+                      required
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                      value={requestData.subjectId}
+                      onChange={(e) =>
+                        setRequestData({
+                          ...requestData,
+                          subjectId: e.target.value,
+                        })
+                      }
+                    >
+                      <option value="">Select Subject</option>
+                      {analytics.marks.map((m) => (
+                        <option key={m.subject_id} value={m.subject_id}>
+                          {m.subject}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    {requestData.field === "attendance"
+                      ? "Status (Present/Absent)"
+                      : "New Value"}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                    value={requestData.newValue}
+                    onChange={(e) =>
+                      setRequestData({
+                        ...requestData,
+                        newValue: e.target.value,
+                      })
+                    }
+                    placeholder={
+                      requestData.field === "cgpa"
+                        ? "e.g. 8.5"
+                        : requestData.field === "marks"
+                          ? "e.g. 85"
+                          : "Present"
+                    }
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 mt-4"
                 >
-                  <BookOpen className="w-6 h-6" />
-                  Start Quiz
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="p-5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-[1.5rem] font-black text-sm shadow-lg flex flex-col items-center gap-2"
-                >
-                  <Star className="w-6 h-6 text-amber-400" />
-                  Flashcards
-                </motion.button>
-              </div>
-            </div>
+                  Submit for Approval
+                </button>
+              </form>
+            </motion.div>
           </div>
-        </motion.div>
-      )}
+        )}
+      </AnimatePresence>
     </div>
+  );
+}
+
+function StatCard({ title, value, icon: Icon, color, trend }) {
+  const colors = {
+    blue: "bg-blue-50 text-blue-600",
+    orange: "bg-orange-50 text-orange-600",
+    emerald: "bg-emerald-50 text-emerald-600",
+    pink: "bg-pink-50 text-pink-600",
+    yellow: "bg-yellow-50 text-yellow-600",
+  };
+
+  return (
+    <motion.div
+      whileHover={{ y: -5 }}
+      className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between"
+    >
+      <div className="flex items-center justify-between mb-4">
+        <div className={`p-3 rounded-2xl ${colors[color]}`}>
+          <Icon size={24} />
+        </div>
+        {trend && (
+          <span
+            className={`text-xs font-bold ${trend.includes("Warning") ? "text-orange-500" : "text-emerald-500"}`}
+          >
+            {trend}
+          </span>
+        )}
+      </div>
+      <div>
+        <p className="text-sm font-medium text-slate-500 mb-1">{title}</p>
+        <p className="text-2xl font-bold text-slate-900">{value}</p>
+      </div>
+    </motion.div>
   );
 }

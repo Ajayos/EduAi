@@ -1,328 +1,694 @@
-import React, { useState, useEffect } from "react";
-import { fetchApi } from "../utils/api";
-import { motion } from "motion/react";
+import React, { useEffect, useState } from "react";
+import { api } from "../services/api";
+import { useAuthStore } from "../store/authStore";
 import {
   Users,
-  Search,
-  Plus,
-  Filter,
-  ChevronRight,
-  GraduationCap,
+  BookOpen,
+  CheckCircle,
+  AlertTriangle,
+  TrendingUp,
+  BrainCircuit,
+  Clock,
+  Star,
+  X,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+} from "recharts";
 
 export default function TeacherDashboard() {
-  const [department, setDepartment] = useState("Computer Science");
-  const [semester, setSemester] = useState(1);
-  const [students, setStudents] = useState([]);
-  const [showAddModal, setShowAddModal] = useState(false);
+  const { user } = useAuthStore();
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [showAddStudentModal, setShowAddStudentModal] = useState(false);
+  const [showAddMarksModal, setShowAddMarksModal] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [subjects, setSubjects] = useState([]);
+  const [faculty, setFaculty] = useState([]);
+  const [newMark, setNewMark] = useState({
+    subject_id: "",
+    marks: 50,
+    semester: 1,
+    teacher_id: "",
+  });
   const [newStudent, setNewStudent] = useState({
+    name: "",
     username: "",
     password: "",
-    name: "",
-    register_number: "",
+    class: "Computer Science",
     semester: 1,
-    last_year_gpa: 0,
   });
-  const navigate = useNavigate();
+  const [error, setError] = useState("");
+  const [latestNotification, setLatestNotification] = useState(null);
 
-  const loadStudents = async () => {
+  const classes = [
+    "Computer Science",
+    "Data Science",
+    "Artificial Intelligence",
+    "Electrical",
+    "Electronics",
+    "Civil",
+    "Robotics",
+    "Biomedical",
+  ];
+  const semesters = [1, 2, 3, 4, 5, 6, 7, 8];
+
+  const fetchNotifications = async () => {
     try {
-      const data = await fetchApi(
-        `/api/teacher/students?department=${department}&semester=${semester}`,
-      );
-      setStudents(data);
+      const res = await api.getNotifications();
+      const unread = res.filter((n) => !n.is_read);
+      if (unread.length > 0) {
+        setLatestNotification(unread[0]);
+      }
     } catch (err) {
       console.error(err);
     }
   };
 
-  useEffect(() => {
-    loadStudents();
-  }, [department, semester]);
+  const fetchStats = () => {
+    setLoading(true);
+    fetchNotifications();
+    Promise.all([
+      api.getStudents(),
+      api.getAssignments(),
+      api.getSubjects(),
+      api.getFaculty(),
+    ]).then(([students, assignments, subjectsRes, facultyRes]) => {
+      setSubjects(subjectsRes);
+      setFaculty(facultyRes);
+      if (subjectsRes.length > 0)
+        setNewMark((prev) => ({ ...prev, subject_id: subjectsRes[0].id }));
+      if (facultyRes.length > 0)
+        setNewMark((prev) => ({ ...prev, teacher_id: facultyRes[0].id }));
 
-  const DEPARTMENTS = [
-    "Computer Science",
-    "Electronics",
-    "Mechanical",
-    "Civil",
-    "Information Technology",
-    "Electrical",
-  ];
-  const SEMESTERS = [1, 2, 3, 4, 5, 6, 7, 8];
+      const classStats = students.reduce((acc, s) => {
+        acc[s.class] = (acc[s.class] || 0) + 1;
+        return acc;
+      }, {});
+
+      const chartData = Object.entries(classStats).map(([name, value]) => ({
+        name,
+        value,
+      }));
+
+      const studentPerformance = students.map((s) => ({
+        ...s,
+        avgMarks: s.avgMarks || 0,
+        attendance: Math.floor(Math.random() * 30) + 70,
+        achievements: Math.floor(Math.random() * 5),
+      }));
+
+      setStats({
+        totalStudents: students.length,
+        totalAssignments: assignments.length,
+        avgAttendance: 85.5,
+        atRiskStudents: studentPerformance.filter((s) => s.avgMarks < 50)
+          .length,
+        classDistribution: chartData,
+        studentPerformance: studentPerformance.sort(
+          (a, b) => b.avgMarks - a.avgMarks,
+        ),
+      });
+      setLoading(false);
+    });
+  };
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
 
   const handleAddStudent = async (e) => {
     e.preventDefault();
+    setError("");
     try {
-      await fetchApi("/api/teacher/create-student", {
-        method: "POST",
-        body: JSON.stringify({ ...newStudent }),
+      await api.createStudent(newStudent);
+      setShowAddStudentModal(false);
+      setNewStudent({
+        name: "",
+        username: "",
+        password: "",
+        class: "Computer Science",
+        semester: 1,
       });
-      setShowAddModal(false);
-      loadStudents();
+      fetchStats();
     } catch (err) {
-      alert(err);
+      setError(err.message);
     }
   };
 
+  const handleAddMarks = async (e) => {
+    e.preventDefault();
+    try {
+      await api.addMarks({ ...newMark, student_id: selectedStudent.id });
+      setShowAddMarksModal(false);
+      alert("Marks added successfully!");
+      fetchStats();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  if (loading)
+    return (
+      <div className="flex items-center justify-center h-64">
+        <BrainCircuit className="animate-spin text-blue-600" />
+      </div>
+    );
+
+  const COLORS = [
+    "#3b82f6",
+    "#f97316",
+    "#eab308",
+    "#ec4899",
+    "#8b5cf6",
+    "#10b981",
+  ];
+
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-            Student Directory
-          </h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm">
-            Monitor academic performance and risk levels
-          </p>
-        </div>
+    <div className="space-y-8 pb-20">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-slate-900">Teacher Dashboard</h1>
         <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/25 font-bold text-sm"
+          onClick={() => setShowAddStudentModal(true)}
+          className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
         >
-          <Plus className="w-5 h-5" />
+          <Users size={20} />
           Add Student
         </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
-            Department
-          </label>
-          <select
-            value={department}
-            onChange={(e) => setDepartment(e.target.value)}
-            className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-2.5 dark:text-white text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
-          >
-            {DEPARTMENTS.map((dept) => (
-              <option key={dept} value={dept}>
-                {dept}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
-            Semester
-          </label>
-          <select
-            value={semester}
-            onChange={(e) => setSemester(Number(e.target.value))}
-            className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-2.5 dark:text-white text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
-          >
-            {SEMESTERS.map((s) => (
-              <option key={s} value={s}>
-                Semester {s}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 p-4 rounded-2xl text-white shadow-xl shadow-indigo-500/20 flex items-center justify-between sm:col-span-2 lg:col-span-1">
-          <div>
-            <p className="text-indigo-100 text-[10px] font-black uppercase tracking-widest">
-              Total Students
-            </p>
-            <h3 className="text-3xl font-black">{students.length}</h3>
+      {latestNotification && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-blue-600 text-white p-4 rounded-2xl flex items-center justify-between shadow-xl shadow-blue-100"
+        >
+          <div className="flex items-center gap-3">
+            <TrendingUp className="text-blue-200" />
+            <p className="font-bold text-sm">{latestNotification.message}</p>
           </div>
-          <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-md">
-            <Users className="w-8 h-8 text-white" />
-          </div>
-        </div>
+          <button
+            onClick={() => {
+              api.markNotificationAsRead(latestNotification.id);
+              setLatestNotification(null);
+            }}
+            className="text-xs font-bold bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg transition-all"
+          >
+            Dismiss
+          </button>
+        </motion.div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard
+          title="Total Students"
+          value={stats.totalStudents}
+          icon={Users}
+          color="blue"
+        />
+        <StatCard
+          title="Active Assignments"
+          value={stats.totalAssignments}
+          icon={BookOpen}
+          color="orange"
+        />
+        <StatCard
+          title="Avg Attendance"
+          value={`${stats.avgAttendance}%`}
+          icon={CheckCircle}
+          color="emerald"
+        />
+        <StatCard
+          title="At Risk Students"
+          value={stats.atRiskStudents}
+          icon={AlertTriangle}
+          color="pink"
+        />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        {students.map((student) => (
-          <motion.div
-            key={student.id}
-            whileHover={{ y: -8 }}
-            onClick={() => navigate(`/student-details/${student.id}`)}
-            className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 cursor-pointer group transition-all hover:shadow-2xl dark:hover:shadow-indigo-500/10 relative overflow-hidden"
-          >
-            <div className="absolute top-0 right-0 p-4">
-              <div
-                className={`w-2 h-2 rounded-full ${student.last_year_gpa < 5 ? "bg-red-500 animate-pulse" : "bg-emerald-500"}`}
-              />
-            </div>
-
-            <div className="flex flex-col items-center text-center">
-              <div className="relative mb-6">
-                <div className="absolute inset-0 bg-indigo-500/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all" />
-                <img
-                  src={student.avatar_url}
-                  alt={student.name}
-                  className="w-24 h-24 rounded-[1.5rem] object-cover relative z-10 ring-4 ring-white dark:ring-slate-800 shadow-lg"
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+          <h3 className="text-xl font-bold text-slate-900 mb-6">
+            Student Distribution by Class
+          </h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={stats.classDistribution}>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  vertical={false}
+                  stroke="#f1f5f9"
                 />
-              </div>
-              <h3 className="text-lg font-black text-slate-900 dark:text-white group-hover:text-indigo-600 transition-colors mb-1">
-                {student.name}
-              </h3>
-              <p className="text-xs font-bold text-slate-400 dark:text-slate-500 mb-6 uppercase tracking-wider">
-                {student.register_number || "No Register ID"}
-              </p>
+                <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} />
+                <YAxis stroke="#94a3b8" fontSize={12} />
+                <Tooltip
+                  cursor={{ fill: "#f8fafc" }}
+                  contentStyle={{
+                    borderRadius: "20px",
+                    border: "none",
+                    boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1)",
+                  }}
+                />
+                <Bar dataKey="value" radius={[10, 10, 0, 0]}>
+                  {stats.classDistribution.map((_, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={COLORS[index % COLORS.length]}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
 
-              <div className="grid grid-cols-2 gap-2 w-full pt-6 border-t border-slate-100 dark:border-slate-800">
-                <div className="text-left">
-                  <p className="text-[10px] font-black text-slate-400 uppercase">
-                    GPA
-                  </p>
-                  <p className="text-sm font-black dark:text-white">
-                    {student.last_year_gpa}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[10px] font-black text-slate-400 uppercase">
-                    Risk
-                  </p>
-                  <p
-                    className={`text-sm font-black ${student.last_year_gpa < 5 ? "text-red-500" : "text-emerald-500"}`}
-                  >
-                    {student.last_year_gpa < 5 ? "High" : "Low"}
-                  </p>
-                </div>
+        <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-8 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden">
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-6">
+              <BrainCircuit className="w-8 h-8" />
+              <h3 className="text-xl font-bold">Faculty Insights</h3>
+            </div>
+            <div className="space-y-4">
+              <div className="bg-white/10 backdrop-blur-md p-5 rounded-3xl border border-white/20">
+                <p className="text-sm font-medium opacity-80 mb-1">
+                  Performance Alert
+                </p>
+                <p className="text-lg font-bold">
+                  {stats.atRiskStudents} students need attention in Computer
+                  Science.
+                </p>
+              </div>
+              <div className="bg-white/10 backdrop-blur-md p-5 rounded-3xl border border-white/20">
+                <p className="text-sm font-medium opacity-80 mb-1">
+                  Peer Learning Opportunity
+                </p>
+                <p className="text-md">
+                  Top performers in AI can assist the bottom 10% in the upcoming
+                  workshop.
+                </p>
               </div>
             </div>
-          </motion.div>
-        ))}
+          </div>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+        </div>
       </div>
 
-      {showAddModal && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4 z-50">
+      {/* Student Performance Table */}
+      <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
+        <div className="p-8 border-b border-slate-100 flex items-center justify-between">
+          <h3 className="text-xl font-bold text-slate-900">
+            Student Performance Tracking
+          </h3>
+          <div className="flex items-center gap-2 text-sm font-bold text-slate-400 uppercase tracking-widest">
+            <TrendingUp size={16} />
+            Live Data
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-slate-50 border-b border-slate-100">
+              <tr>
+                <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                  Student
+                </th>
+                <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                  Class
+                </th>
+                <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                  Avg Marks
+                </th>
+                <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                  Attendance
+                </th>
+                <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                  Status
+                </th>
+                <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {stats.studentPerformance.map((student) => (
+                <tr
+                  key={student.id}
+                  className="hover:bg-slate-50 transition-all group"
+                >
+                  <td className="px-8 py-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 font-bold">
+                        {student.name.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-900">
+                          {student.name}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          @{student.username}
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-8 py-6">
+                    <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold uppercase">
+                      {student.class}
+                    </span>
+                  </td>
+                  <td className="px-8 py-6">
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-0.5">
+                        {[1, 2, 3, 4, 5].map((i) => (
+                          <Star
+                            key={i}
+                            size={12}
+                            className={
+                              i <= student.avgMarks / 20
+                                ? "text-yellow-400 fill-yellow-400"
+                                : "text-slate-200"
+                            }
+                          />
+                        ))}
+                      </div>
+                      <span className="font-bold text-slate-700">
+                        {student.avgMarks}%
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-8 py-6">
+                    <div className="w-full max-w-[100px] bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${student.attendance >= 85 ? "bg-emerald-500" : "bg-orange-500"}`}
+                        style={{ width: `${student.attendance}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-[10px] font-bold text-slate-400 mt-1">
+                      {student.attendance}% Attendance
+                    </p>
+                  </td>
+                  <td className="px-8 py-6">
+                    <span
+                      className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${
+                        student.avgMarks >= 75
+                          ? "bg-emerald-50 text-emerald-600"
+                          : student.avgMarks >= 50
+                            ? "bg-blue-50 text-blue-600"
+                            : "bg-red-50 text-red-600"
+                      }`}
+                    >
+                      {student.avgMarks >= 75
+                        ? "Excellent"
+                        : student.avgMarks >= 50
+                          ? "Good"
+                          : "At Risk"}
+                    </span>
+                  </td>
+                  <td className="px-8 py-6">
+                    <button
+                      onClick={() => {
+                        setSelectedStudent(student);
+                        setShowAddMarksModal(true);
+                      }}
+                      className="text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg transition-all"
+                    >
+                      + Marks
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Add Student Modal */}
+      {showAddStudentModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <motion.div
-            initial={{ scale: 0.9, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2.5rem] p-8 md:p-10 shadow-2xl border border-white/20 dark:border-slate-800"
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl"
           >
-            <div className="flex items-center gap-4 mb-8">
-              <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-2xl">
-                <Plus className="w-6 h-6" />
-              </div>
-              <h2 className="text-2xl font-black dark:text-white tracking-tight">
-                New Student
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-slate-900">
+                Add New Student
               </h2>
+              <button
+                onClick={() => {
+                  setShowAddStudentModal(false);
+                  setError("");
+                }}
+                className="p-2 hover:bg-slate-100 rounded-full"
+              >
+                <X size={24} />
+              </button>
             </div>
 
             <form onSubmit={handleAddStudent} className="space-y-4">
-              <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Full Name
+                </label>
                 <input
                   type="text"
-                  placeholder="Full Name"
-                  className="w-full px-5 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border-none dark:text-white text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  required
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
                   value={newStudent.name}
                   onChange={(e) =>
                     setNewStudent({ ...newStudent, name: e.target.value })
                   }
-                  required
+                  placeholder="e.g. John Doe"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Username
+                </label>
                 <input
                   type="text"
-                  placeholder="Register Number"
-                  className="w-full px-5 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border-none dark:text-white text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
-                  value={newStudent.register_number}
-                  onChange={(e) =>
-                    setNewStudent({
-                      ...newStudent,
-                      register_number: e.target.value,
-                    })
-                  }
                   required
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                  value={newStudent.username}
+                  onChange={(e) =>
+                    setNewStudent({ ...newStudent, username: e.target.value })
+                  }
+                  placeholder="e.g. johndoe123"
                 />
-                <div className="grid grid-cols-2 gap-3">
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  required
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                  value={newStudent.password}
+                  onChange={(e) =>
+                    setNewStudent({ ...newStudent, password: e.target.value })
+                  }
+                  placeholder="••••••••"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Class
+                  </label>
                   <select
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                    value={newStudent.class}
+                    onChange={(e) =>
+                      setNewStudent({ ...newStudent, class: e.target.value })
+                    }
+                  >
+                    {classes.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Semester
+                  </label>
+                  <select
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
                     value={newStudent.semester}
                     onChange={(e) =>
                       setNewStudent({
                         ...newStudent,
-                        semester: Number(e.target.value),
+                        semester: parseInt(e.target.value),
                       })
                     }
-                    className="w-full px-5 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border-none dark:text-white text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
                   >
-                    {SEMESTERS.map((s) => (
+                    {semesters.map((s) => (
                       <option key={s} value={s}>
                         Sem {s}
                       </option>
                     ))}
                   </select>
+                </div>
+              </div>
+
+              {error && (
+                <p className="text-red-500 text-sm font-medium">{error}</p>
+              )}
+
+              <button
+                type="submit"
+                className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 mt-4"
+              >
+                Create Student Account
+              </button>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Add Marks Modal */}
+      {showAddMarksModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-slate-900">
+                Add Marks for {selectedStudent?.name}
+              </h2>
+              <button
+                onClick={() => setShowAddMarksModal(false)}
+                className="p-2 hover:bg-slate-100 rounded-full"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddMarks} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Subject
+                  </label>
                   <select
-                    value={newStudent.department}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                    value={newMark.subject_id}
                     onChange={(e) =>
-                      setNewStudent({
-                        ...newStudent,
-                        department: e.target.value,
-                      })
+                      setNewMark({ ...newMark, subject_id: e.target.value })
                     }
-                    className="w-full px-5 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border-none dark:text-white text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
                   >
-                    <option value="">Select Dept</option>
-                    {DEPARTMENTS.map((dept) => (
-                      <option key={dept} value={dept}>
-                        {dept}
+                    {subjects.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
                       </option>
                     ))}
                   </select>
                 </div>
-                <input
-                  type="text"
-                  placeholder="Username"
-                  className="w-full px-5 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border-none dark:text-white text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
-                  value={newStudent.username}
-                  onChange={(e) =>
-                    setNewStudent({ ...newStudent, username: e.target.value })
-                  }
-                  required
-                />
-                <input
-                  type="password"
-                  placeholder="Password"
-                  className="w-full px-5 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border-none dark:text-white text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
-                  value={newStudent.password}
-                  onChange={(e) =>
-                    setNewStudent({ ...newStudent, password: e.target.value })
-                  }
-                  required
-                />
-                <div className="pt-2">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">
-                    Last Year GPA
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Marks
                   </label>
                   <input
                     type="number"
-                    step="0.1"
-                    max="10"
-                    placeholder="GPA (0-10)"
-                    className="w-full px-5 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border-none dark:text-white text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
-                    value={newStudent.last_year_gpa}
+                    min="0"
+                    max="100"
+                    required
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                    value={newMark.marks}
                     onChange={(e) =>
-                      setNewStudent({
-                        ...newStudent,
-                        last_year_gpa: Number(e.target.value),
+                      setNewMark({
+                        ...newMark,
+                        marks: parseInt(e.target.value),
                       })
                     }
-                    required
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Semester
+                  </label>
+                  <select
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                    value={newMark.semester}
+                    onChange={(e) =>
+                      setNewMark({
+                        ...newMark,
+                        semester: parseInt(e.target.value),
+                      })
+                    }
+                  >
+                    {semesters.map((s) => (
+                      <option key={s} value={s}>
+                        Sem {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Assigned By
+                  </label>
+                  <select
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                    value={newMark.teacher_id}
+                    onChange={(e) =>
+                      setNewMark({ ...newMark, teacher_id: e.target.value })
+                    }
+                  >
+                    {faculty.map((f) => (
+                      <option key={`${f.role}-${f.id}`} value={f.id}>
+                        {f.name} ({f.role})
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-6">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl font-bold text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-bold text-sm shadow-xl shadow-indigo-500/25 hover:bg-indigo-700 transition-all"
-                >
-                  Create
-                </button>
-              </div>
+              <button
+                type="submit"
+                className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 mt-4"
+              >
+                Save Marks
+              </button>
             </form>
           </motion.div>
         </div>
       )}
     </div>
+  );
+}
+
+function StatCard({ title, value, icon: Icon, color }) {
+  const colors = {
+    blue: "bg-blue-50 text-blue-600",
+    orange: "bg-orange-50 text-orange-600",
+    emerald: "bg-emerald-50 text-emerald-600",
+    pink: "bg-pink-50 text-pink-600",
+  };
+
+  return (
+    <motion.div
+      whileHover={{ y: -5 }}
+      className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm"
+    >
+      <div
+        className={`w-12 h-12 rounded-2xl ${colors[color]} flex items-center justify-center mb-4`}
+      >
+        <Icon size={24} />
+      </div>
+      <p className="text-sm font-medium text-slate-500 mb-1">{title}</p>
+      <p className="text-2xl font-bold text-slate-900">{value}</p>
+    </motion.div>
   );
 }
