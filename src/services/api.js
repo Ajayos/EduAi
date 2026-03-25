@@ -2,19 +2,16 @@ import { useAuthStore } from "../store/authStore";
 
 const API_URL = "/api";
 
-async function request(endpoint, options) {
+async function request(endpoint, options = {}) {
   const token = useAuthStore.getState().token;
-  const isFormData = options?.body;
 
-  var headers = {
+  const isFormData = options.body instanceof FormData;
+
+  const headers = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...(options?.headers || {}),
-    ...(!isFormData ? {} : { "Content-Type": "application/json" }),
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
+    ...(options.headers || {}),
   };
-
-  if (!isFormData) {
-    headers["Content-Type"] = "application/json";
-  }
 
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
@@ -22,21 +19,20 @@ async function request(endpoint, options) {
   });
 
   const contentType = response.headers.get("content-type");
+
   if (!response.ok) {
     if (contentType && contentType.includes("application/json")) {
       const error = await response.json();
       throw new Error(error.message || "Something went wrong");
     } else {
-      const text = await response.text();
-      throw new Error(
-        `Server Error: ${response.status} ${response.statusText}`,
-      );
+      throw new Error(`Server Error: ${response.status}`);
     }
   }
 
   if (contentType && contentType.includes("application/json")) {
     return response.json();
   }
+
   return response.text();
 }
 
@@ -76,10 +72,14 @@ export const api = {
     request("/admin/subjects", { method: "POST", body: JSON.stringify(data) }),
   deleteSubject: (id) => request(`/admin/subjects/${id}`, { method: "DELETE" }),
   uploadFile: (file) => {
-    const formData = new FormData();
-    formData.append("file", file);
-    return request("/upload", { method: "POST", body: formData });
-  },
+  const formData = new FormData();
+  formData.append("file", file);
+
+  return request("/upload", {
+    method: "POST",
+    body: formData,
+  });
+},
 
   // Teacher
   getStudents: () => request("/teacher/students"),

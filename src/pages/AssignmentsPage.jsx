@@ -83,7 +83,7 @@ export default function AssignmentsPage() {
     try {
       let file_url = newAssignment.file_url;
       if (selectedFile) {
-        const uploadRes = await api.uploadFile(selectedFile);
+        const uploadRes = await api.uploadFile(selectedFile, "form-data");
         file_url = uploadRes.fileUrl;
       }
 
