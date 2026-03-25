@@ -34,8 +34,10 @@ export default function DashboardLayout({ children, activeTab, setActiveTab }) {
       roles: ["admin", "teacher", "student"],
     },
     { icon: TrendingUp, label: "Marks", roles: ["teacher"] },
+    { icon: CheckCircle, label: "Attendance", roles: ["teacher"] },
+    { icon: Users, label: "Profiles", roles: ["teacher"] },
     { icon: BrainCircuit, label: "Learning", roles: ["student"] },
-    { icon: Users, label: "Students", roles: ["admin", "teacher"] },
+    { icon: Users, label: "Students", roles: ["admin"] },
     { icon: BookOpen, label: "Assignments", roles: ["teacher", "student"] },
     { icon: Award, label: "Quizzes", roles: ["teacher", "student"] },
     { icon: Lightbulb, label: "Flashcards", roles: ["teacher", "student"] },
@@ -81,30 +83,6 @@ export default function DashboardLayout({ children, activeTab, setActiveTab }) {
               <span className="font-medium">{item.label}</span>
             </button>
           ))}
-          {user?.role === "admin" && (
-            <button
-              onClick={() => setActiveTab?.("QuickAddStudent")}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-emerald-600 hover:bg-emerald-50 transition-all group mt-4 border border-emerald-100 border-dashed"
-            >
-              <UserPlus
-                size={20}
-                className="group-hover:scale-110 transition-transform"
-              />
-              <span className="font-bold text-sm">Quick Add Student</span>
-            </button>
-          )}
-          {user?.role === "teacher" && (
-            <button
-              onClick={() => setActiveTab?.("Marks")}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-blue-600 hover:bg-blue-50 transition-all group mt-4 border border-blue-100 border-dashed"
-            >
-              <TrendingUp
-                size={20}
-                className="group-hover:scale-110 transition-transform"
-              />
-              <span className="font-bold text-sm">Quick Add Marks</span>
-            </button>
-          )}
         </nav>
 
         <div className="p-4 border-t border-slate-100 hidden">

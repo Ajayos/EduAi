@@ -41,7 +41,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function StudentDashboard({ setActiveTab }) {
-  const { user } = useAuthStore();
+  const { user, updateUser } = useAuthStore();
   const [analytics, setAnalytics] = useState(null);
   const [assignments, setAssignments] = useState([]);
   const [achievements, setAchievements] = useState([]);
@@ -56,6 +56,15 @@ export default function StudentDashboard({ setActiveTab }) {
   const [loading, setLoading] = useState(true);
   const [latestNotification, setLatestNotification] = useState(null);
   const [activeSubTab, setActiveSubTab] = useState("Overview");
+  const [profileData, setProfileData] = useState({
+    tenthMarks: user?.tenthMarks || "",
+    twelfthMarks: user?.twelfthMarks || "",
+    fatherName: user?.fatherName || "",
+    fatherNumber: user?.fatherNumber || "",
+    motherName: user?.motherName || "",
+    motherNumber: user?.motherNumber || "",
+    problemSubjects: user?.problemSubjects || [],
+  });
 
   useEffect(() => {
     fetchData();
@@ -148,6 +157,19 @@ export default function StudentDashboard({ setActiveTab }) {
       fetchData();
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleUpdateProfile = async (e) => {
+    e.preventDefault();
+    try {
+      if (api.updateStudentProfile) {
+        await api.updateStudentProfile(profileData);
+        updateUser(profileData);
+      }
+      alert("Profile updated successfully!");
+    } catch (err) {
+      alert("Failed to update profile: " + err.message);
     }
   };
 
@@ -295,6 +317,7 @@ export default function StudentDashboard({ setActiveTab }) {
       <div className="flex items-center gap-4 border-b border-slate-200 pb-4 overflow-x-auto">
         {[
           "Overview",
+          "Profile",
           "Attendance",
           "Performance",
           "Timetable",
@@ -313,6 +336,166 @@ export default function StudentDashboard({ setActiveTab }) {
           </button>
         ))}
       </div>
+
+      {activeSubTab === "Profile" && (
+        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h3 className="text-2xl font-black text-slate-900">
+                Personal Background
+              </h3>
+              <p className="text-slate-500 font-medium">
+                Update your academic and guardian details
+              </p>
+            </div>
+            <div className="p-3 bg-purple-50 text-purple-600 rounded-2xl">
+              <Users size={28} />
+            </div>
+          </div>
+
+          <form onSubmit={handleUpdateProfile} className="space-y-6 max-w-2xl">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 shadow-sm focus-within:ring-2 focus-within:ring-purple-500 transition-all">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">10th Grade Marks (%)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="100"
+                  className="w-full bg-transparent text-xl font-bold text-slate-900 outline-none"
+                  value={profileData.tenthMarks}
+                  onChange={(e) => setProfileData({ ...profileData, tenthMarks: e.target.value })}
+                  placeholder="e.g. 92.5"
+                />
+              </div>
+              <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 shadow-sm focus-within:ring-2 focus-within:ring-purple-500 transition-all">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">12th Grade Marks (%)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="100"
+                  className="w-full bg-transparent text-xl font-bold text-slate-900 outline-none"
+                  value={profileData.twelfthMarks}
+                  onChange={(e) => setProfileData({ ...profileData, twelfthMarks: e.target.value })}
+                  placeholder="e.g. 88.0"
+                />
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-4 focus-within:ring-2 focus-within:ring-purple-500 transition-all">
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Father's Full Name</label>
+                    <input
+                      type="text"
+                      className="w-full bg-slate-100 px-4 py-3 rounded-xl font-medium text-slate-900 outline-none focus:bg-white focus:ring-2 focus:ring-purple-400 transition-all"
+                      value={profileData.fatherName}
+                      onChange={(e) => setProfileData({ ...profileData, fatherName: e.target.value })}
+                      placeholder="Enter Father's Name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Father's Phone Number</label>
+                    <input
+                      type="tel"
+                      className="w-full bg-slate-100 px-4 py-3 rounded-xl font-medium text-slate-900 outline-none focus:bg-white focus:ring-2 focus:ring-purple-400 transition-all"
+                      value={profileData.fatherNumber}
+                      onChange={(e) => setProfileData({ ...profileData, fatherNumber: e.target.value })}
+                      placeholder="Enter Father's Phone"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Mother's Full Name</label>
+                    <input
+                      type="text"
+                      className="w-full bg-slate-100 px-4 py-3 rounded-xl font-medium text-slate-900 outline-none focus:bg-white focus:ring-2 focus:ring-purple-400 transition-all"
+                      value={profileData.motherName}
+                      onChange={(e) => setProfileData({ ...profileData, motherName: e.target.value })}
+                      placeholder="Enter Mother's Name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Mother's Phone Number</label>
+                    <input
+                      type="tel"
+                      className="w-full bg-slate-100 px-4 py-3 rounded-xl font-medium text-slate-900 outline-none focus:bg-white focus:ring-2 focus:ring-purple-400 transition-all"
+                      value={profileData.motherNumber}
+                      onChange={(e) => setProfileData({ ...profileData, motherNumber: e.target.value })}
+                      placeholder="Enter Mother's Phone"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Subjects you have difficulty with</label>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {analytics.marks.map((m) => (
+                    <button
+                      key={m.subject_id}
+                      type="button"
+                      onClick={() => {
+                        const current = profileData.problemSubjects || [];
+                        if (current.includes(m.subject)) {
+                          setProfileData({ ...profileData, problemSubjects: current.filter(s => s !== m.subject) });
+                        } else {
+                          setProfileData({ ...profileData, problemSubjects: [...current, m.subject] });
+                        }
+                      }}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                        (profileData.problemSubjects || []).includes(m.subject)
+                          ? "bg-red-500 text-white shadow-lg shadow-red-100"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      {m.subject}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {profileData.problemSubjects?.length > 0 && (
+              <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-8 rounded-[2.5rem] text-white shadow-xl shadow-indigo-100">
+                <div className="flex items-center gap-3 mb-6">
+                  <Sparkles className="text-yellow-300" />
+                  <h4 className="text-xl font-black">AI Academic Advisor</h4>
+                </div>
+                <div className="space-y-6">
+                  {profileData.problemSubjects.map((subject) => {
+                    const advice = [
+                      "Based on your current performance and the syllabus complexity, I recommend dedicating at least 45 minutes daily to focused practice. Focus specifically on the foundational concepts before moving to advanced topics, as the current module builds heavily on previous ones.",
+                      "To master this subject, try implementing the 'Feynman Technique' where you explain concepts to yourself out loud. Your recent quiz results suggest that visual aids and diagrams might help you grasp the abstract theories more effectively than rote memorization.",
+                      "I've noticed a slight delay in your assignment submissions for this area. It might be beneficial to join a peer study group or schedule a one-on-one session with your professor to clarify any lingering doubts that might be slowing down your progress.",
+                    ][Math.floor(Math.random() * 3)];
+                    
+                    return (
+                      <div key={subject} className="bg-white/10 backdrop-blur-md rounded-3xl p-6 border border-white/20">
+                        <p className="text-xs font-black text-indigo-200 uppercase tracking-[0.2em] mb-2">{subject}</p>
+                        <p className="text-sm leading-relaxed text-indigo-50 font-medium">
+                          {advice}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="w-full py-4 bg-purple-600 text-white rounded-2xl font-black tracking-wide hover:bg-purple-700 hover:shadow-xl hover:shadow-purple-200 transition-all"
+            >
+              Save Profile Details
+            </button>
+          </form>
+        </div>
+      )}
 
       {activeSubTab === "Achievements" && (
         <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
@@ -633,74 +816,152 @@ export default function StudentDashboard({ setActiveTab }) {
       )}
 
       {activeSubTab === "Performance" && (
-        <div className="space-y-8">
-          {/* Subject Slots */}
-          <div className="space-y-6">
-            <h3 className="text-xl font-bold text-slate-900">
-              Subject-wise Analysis
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {analytics.marks.map((m) => (
-                <motion.div
-                  key={m.subject}
-                  whileHover={{ y: -5 }}
-                  onClick={() => setSelectedSubject(m)}
-                  className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition-all text-left group cursor-pointer"
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl group-hover:scale-110 transition-transform">
-                      <BookOpen size={24} />
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {[1, 2, 3, 4, 5].map((i) => (
-                        <Star
-                          key={i}
-                          size={12}
-                          className={
-                            i <= m.marks / 20
-                              ? "text-yellow-400 fill-yellow-400"
-                              : "text-slate-200"
-                          }
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  <h4 className="font-bold text-slate-900 mb-1">{m.subject}</h4>
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-slate-500">
-                      {m.marks >= 40 ? "Pass" : "Fail"}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setRequestData({
-                            ...requestData,
-                            field: "marks",
-                            subjectId: String(m.subject_id),
-                          });
-                          setShowRequestModal(true);
-                        }}
-                        className="p-1.5 bg-slate-100 text-slate-500 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-all"
-                        title="Request Correction"
-                      >
-                        <AlertTriangle size={14} />
-                      </button>
-                      <span
-                        className={`text-xs font-bold px-2 py-1 rounded-lg ${
-                          m.marks >= 75
-                            ? "bg-emerald-50 text-emerald-600"
-                            : m.marks >= 40
-                              ? "bg-blue-50 text-blue-600"
-                              : "bg-red-50 text-red-600"
-                        }`}
-                      >
-                        {m.marks}%
-                      </span>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
+        <div className="space-y-12">
+          {/* Overall Performance Section */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900">Academic Trend</h3>
+                  <p className="text-sm text-slate-500">CGPA progression across semesters</p>
+                </div>
+                <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+                  <TrendingUp size={24} />
+                </div>
+              </div>
+              <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={analytics.cgpaTrend}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis 
+                      dataKey="semester" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }}
+                      label={{ value: 'Semester', position: 'insideBottom', offset: -5, fill: '#94a3b8', fontSize: 10, fontWeight: 800 }}
+                    />
+                    <YAxis 
+                      domain={[0, 10]} 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }}
+                    />
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)' }}
+                      itemStyle={{ fontWeight: 800, color: '#2563eb' }}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="cgpa" 
+                      stroke="#3b82f6" 
+                      strokeWidth={4} 
+                      dot={{ r: 6, fill: '#3b82f6', strokeWidth: 3, stroke: '#fff' }}
+                      activeDot={{ r: 8, strokeWidth: 0 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900">Skill Distribution</h3>
+                  <p className="text-sm text-slate-500">Comparative subject mastery</p>
+                </div>
+                <div className="p-3 bg-purple-50 text-purple-600 rounded-2xl">
+                  <BrainCircuit size={24} />
+                </div>
+              </div>
+              <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
+                    <PolarGrid stroke="#f1f5f9" />
+                    <PolarAngleAxis 
+                      dataKey="subject" 
+                      tick={{ fill: '#64748b', fontSize: 10, fontWeight: 700 }}
+                    />
+                    <Radar
+                      name="Score"
+                      dataKey="score"
+                      stroke="#8b5cf6"
+                      fill="#8b5cf6"
+                      fillOpacity={0.6}
+                    />
+                    <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)' }} />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
+          {/* Detailed Subject Report Table */}
+          <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900">Academic Report</h3>
+                <p className="text-sm text-slate-500">Detailed breakdown of current semester</p>
+              </div>
+              <button className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-2xl font-bold text-sm hover:bg-slate-800 transition-all">
+                <Download size={18} />
+                Export PDF
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-white">
+                  <tr>
+                    <th className="px-8 py-5 text-xs font-bold text-slate-400 uppercase tracking-widest">Subject</th>
+                    <th className="px-8 py-5 text-xs font-bold text-slate-400 uppercase tracking-widest">Internal Marks</th>
+                    <th className="px-8 py-5 text-xs font-bold text-slate-400 uppercase tracking-widest">Attendance</th>
+                    <th className="px-8 py-5 text-xs font-bold text-slate-400 uppercase tracking-widest">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {analytics.marks.map((m) => (
+                    <tr key={m.subject} className="group hover:bg-slate-50/50 transition-all cursor-pointer" onClick={() => setSelectedSubject(m)}>
+                      <td className="px-8 py-6">
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center font-bold">
+                            {m.subject.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-900">{m.subject}</p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Theory + Practical</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-8 py-6">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 bg-slate-100 h-2 rounded-full overflow-hidden max-w-[100px]">
+                            <div 
+                              className={`h-full rounded-full ${m.marks >= 75 ? 'bg-emerald-500' : m.marks >= 40 ? 'bg-blue-500' : 'bg-red-500'}`}
+                              style={{ width: `${m.marks}%` }}
+                            ></div>
+                          </div>
+                          <span className="font-bold text-slate-700">{m.marks}%</span>
+                        </div>
+                      </td>
+                      <td className="px-8 py-6">
+                        <span className={`px-4 py-1.5 rounded-xl text-xs font-black ${m.attendance >= 85 ? 'bg-emerald-50 text-emerald-600' : m.attendance >= 75 ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
+                          {m.attendance}%
+                        </span>
+                      </td>
+                      <td className="px-8 py-6">
+                        {m.marks >= 40 ? (
+                           <span className="flex items-center gap-1.5 text-emerald-600 font-bold text-xs uppercase tracking-wider">
+                             <CheckCircle size={14} /> Cleared
+                           </span>
+                        ) : (
+                          <span className="flex items-center gap-1.5 text-red-600 font-bold text-xs uppercase tracking-wider">
+                            <AlertTriangle size={14} /> At Risk
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

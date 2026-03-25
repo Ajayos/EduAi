@@ -41,7 +41,6 @@ export const api = {
     request("/auth/login", {
       method: "POST",
       body: JSON.stringify(credentials),
-
     }),
   registerTeacher: (data) =>
     request("/auth/register-teacher", {
@@ -59,6 +58,12 @@ export const api = {
       body: JSON.stringify(data),
     }),
   deleteTeacher: (id) => request(`/admin/teachers/${id}`, { method: "DELETE" }),
+  getTeacherAssignedSubjects: (id) => request(`/admin/teachers/${id}/subjects`),
+  assignSubjectToTeacher: (teacherId, data) =>
+    request(`/admin/teachers/${teacherId}/subjects`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   getAdminStudents: () => request("/admin/students"),
   getAdminStudentDetails: (id) => request(`/admin/students/${id}`),
@@ -72,14 +77,13 @@ export const api = {
     request("/admin/subjects", { method: "POST", body: JSON.stringify(data) }),
   deleteSubject: (id) => request(`/admin/subjects/${id}`, { method: "DELETE" }),
   uploadFile: (file) => {
-  const formData = new FormData();
-  formData.append("file", file);
-
-  return request("/upload", {
-    method: "POST",
-    body: formData,
-  });
-},
+    const formData = new FormData();
+    formData.append("file", file);
+    return request("/upload", {
+      method: "POST",
+      body: formData,
+    });
+  },
 
   // Teacher
   getStudents: () => request("/teacher/students"),
@@ -176,7 +180,11 @@ export const api = {
     }),
   getStudentAnalytics: (id) => request(`/analytics/student/${id}`),
   getStudentAssignments: () => request("/student/assignments"),
-  generateAIContent: (data) => request("/generate-ai-content", { method: "POST", body: JSON.stringify(data) }),
+  generateAIContent: (formData) =>
+    request("/generate-ai-content", {
+      method: "POST",
+      body: formData,
+    }),
   getAssignmentAnalytics: () => request("/teacher/analytics/assignments"),
   getQuizAnalytics: () => request("/teacher/analytics/quizzes"),
   updateAssignmentPriority: (id, data) =>
@@ -191,4 +199,6 @@ export const api = {
     }),
   completeAssignment: (id) =>
     request(`/student/assignments/${id}/complete`, { method: "POST" }),
+  updateStudentProfile: (data) =>
+    request(`/student/profile`, { method: "PUT", body: JSON.stringify(data) }),
 };

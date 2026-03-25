@@ -14,6 +14,8 @@ import {
   X,
   Trash2,
   BookOpen,
+  Users,
+  CheckSquare,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ConfirmationModal from "../components/ConfirmationModal";
@@ -34,11 +36,14 @@ export default function QuizPage() {
   const [showAiModal, setShowAiModal] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiSubjectId, setAiSubjectId] = useState("");
+  const [aiFile, setAiFile] = useState(null);
+  const [students, setStudents] = useState([]);
+  const [step, setStep] = useState(1);
 
-  // Quiz Creation/Edit State
   const [newQuiz, setNewQuiz] = useState({
     title: "",
     subject_id: "",
+    student_ids: [],
     questions: [
       {
         text: "",
@@ -54,6 +59,7 @@ export default function QuizPage() {
     fetchQuizzes();
     if (user?.role === "teacher") {
       fetchSubjects();
+      fetchStudents();
     }
   }, []);
 
@@ -61,6 +67,7 @@ export default function QuizPage() {
     try {
       const res = await api.getQuizzes();
       setQuizzes(res);
+      console.log(res)
     } catch (err) {
       console.error(err);
     } finally {
@@ -70,7 +77,7 @@ export default function QuizPage() {
 
   const fetchSubjects = async () => {
     try {
-      const res = await api.getSubjects();
+      const res = await api.getTeacherSubjects();
       setSubjects(res);
       if (res.length > 0 && !editingQuiz) {
         setNewQuiz((prev) => ({ ...prev, subject_id: String(res[0].id) }));
@@ -80,8 +87,29 @@ export default function QuizPage() {
     }
   };
 
+  const fetchStudents = async () => {
+    try {
+      const res = await api.getStudents();
+      setStudents(res);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleCreateQuiz = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
+    
+    // Validate Step 1
+    if (step === 1 && !editingQuiz) {
+      if (!newQuiz.title || !newQuiz.subject_id) {
+        alert("Please fill in title and subject");
+        return;
+      }
+      setStep(2);
+      return;
+    }
+
+    // Final Submission
     try {
       if (editingQuiz) {
         await api.updateQuiz(editingQuiz.id, newQuiz);
@@ -90,35 +118,35 @@ export default function QuizPage() {
       }
       setShowAddModal(false);
       setEditingQuiz(null);
+      setStep(1);
       setNewQuiz({
         title: "",
         subject_id: subjects[0]?.id ? String(subjects[0].id) : "",
-        questions: [
-          {
-            text: "",
-            options: [
-              { text: "", isCorrect: true },
-              { text: "", isCorrect: false },
-            ],
-          },
-        ],
+        student_ids: [],
+        questions: [{ text: "", options: [{ text: "", isCorrect: true }, { text: "", isCorrect: false }] }],
       });
       fetchQuizzes();
     } catch (err) {
       console.error(err);
+      alert("Failed to save quiz");
     }
   };
 
   const handleAiGenerate = async (e) => {
     e.preventDefault();
+    if (!aiFile) return alert("Please select a file to upload.");
+    if (!aiSubjectId && !subjects[0]?.id) return alert("Please select a subject.");
+
     setIsGenerating(true);
     try {
-      await api.generateAIContent({
-        file_url: "mock_uploaded_file.pdf",
-        subject_id: aiSubjectId || (subjects[0]?.id ? String(subjects[0].id) : ""),
-        type: "quiz"
-      });
+      const formData = new FormData();
+      formData.append("document", aiFile);
+      formData.append("subject_id", aiSubjectId || String(subjects[0].id));
+      formData.append("type", "quiz");
+
+      await api.generateAIContent(formData);
       setShowAiModal(false);
+      setAiFile(null);
       fetchQuizzes();
     } catch (err) {
       console.error(err);
@@ -151,8 +179,10 @@ export default function QuizPage() {
     setNewQuiz({
       title: quiz.title,
       subject_id: String(quiz.subject_id),
+      student_ids: quiz.student_ids || [],
       questions: JSON.parse(quiz.questions),
     });
+    setStep(1);
     setShowAddModal(true);
   };
 
@@ -237,6 +267,48 @@ export default function QuizPage() {
       console.error(err);
     }
   };
+
+  const filteredStudents = newQuiz.subject_id 
+    ? students.filter(s => {
+        const sub = subjects.find(sub => String(sub.id) === String(newQuiz.subject_id));
+        return sub ? (s.class === sub.class && s.semester === sub.semester) : true;
+      })
+    : [];
+
+  const toggleStudent = (id) => {
+    setNewQuiz((prev) => ({
+      ...prev,
+      student_ids: prev.student_ids.includes(id)
+        ? prev.student_ids.filter((sid) => sid !== id)
+        : [...prev.student_ids, id],
+    }));
+  };
+
+  const selectAll = () => {
+    setNewQuiz((prev) => ({
+      ...prev,
+      student_ids: filteredStudents.map((s) => s.id),
+    }));
+  };
+
+  const teacherGrouped = user?.role === "teacher" 
+    ? quizzes.reduce((acc, curr) => {
+        const existing = acc.find((a) => a.title === curr.title && a.subject_id === curr.subject_id);
+        if (existing) {
+          if (curr.student_id) {
+            existing.student_names = [...(existing.student_names || []), curr.student_name].filter(Boolean);
+            existing.student_ids = [...(existing.student_ids || []), curr.student_id].filter(Boolean);
+          }
+        } else {
+          acc.push({
+            ...curr,
+            student_names: curr.student_id ? [curr.student_name] : [],
+            student_ids: curr.student_id ? [curr.student_id] : [],
+          });
+        }
+        return acc;
+      }, [])
+    : quizzes;
 
   if (loading)
     return (
@@ -377,66 +449,87 @@ export default function QuizPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {quizzes.length === 0 ? (
-          <div className="col-span-full py-20 text-center bg-white rounded-[2.5rem] border border-dashed border-slate-200">
-            <BrainCircuit className="mx-auto text-slate-300 mb-4" size={48} />
-            <p className="text-slate-500">No quizzes available yet.</p>
-          </div>
-        ) : (
-          quizzes.map((quiz) => (
-            <motion.div
-              key={quiz.id}
-              whileHover={{ y: -5 }}
-              className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition-all group"
-            >
-              <div className="flex items-start justify-between mb-6">
-                <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl group-hover:scale-110 transition-transform">
-                  <BrainCircuit size={32} />
+          {teacherGrouped.length === 0 ? (
+            <div className="col-span-full py-12 text-center bg-white rounded-3xl border border-dashed border-slate-300">
+              <BrainCircuit className="mx-auto text-slate-300 mb-4" size={48} />
+              <p className="text-slate-500">No quizzes found.</p>
+            </div>
+          ) : (
+            teacherGrouped.map((quiz) => (
+              <motion.div
+                key={quiz.id}
+                whileHover={{ y: -5 }}
+                className="bg-white p-6 rounded-[2.5rem] border border-slate-200 shadow-sm hover:shadow-xl transition-all group relative"
+              >
+                <div className="flex items-start justify-between mb-6">
+                  <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl group-hover:scale-110 transition-transform">
+                    <BrainCircuit size={32} />
+                  </div>
+                  <div className="text-right">
+                    <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider block mb-1">
+                      {quiz.subject_name}
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      {quiz.class} • Sem {quiz.semester}
+                    </span>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider block mb-1">
-                    {quiz.subject_name}
-                  </span>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    {quiz.class} • Sem {quiz.semester}
-                  </span>
-                </div>
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-2">
-                {quiz.title}
-              </h3>
-              <p className="text-sm text-slate-500 mb-6">
-                By Prof. {quiz.teacher_name}
-              </p>
+                <h3 className="text-xl font-bold text-slate-900 mb-2">
+                  {quiz.title}
+                </h3>
+                <p className="text-sm text-slate-500 mb-4">
+                  By Prof. {quiz.teacher_name}
+                </p>
 
-              {user?.role === "student" && (
-                <button
-                  onClick={() => startQuiz(quiz)}
-                  className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 flex items-center justify-center gap-2"
-                >
-                  <Sparkles size={20} />
-                  Start Quiz
-                </button>
-              )}
-              {user?.role === "teacher" && (
-                <div className="flex items-center gap-2">
+                {user?.role === "teacher" && (
+                  <div className="mb-6">
+                    <div className="flex items-center gap-2 text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">
+                      <Users size={14} />
+                      <span>{quiz.student_ids?.length > 0 ? `${quiz.student_ids.length} Students` : "All Students"}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {quiz.student_names?.slice(0, 3).map((name, i) => (
+                        <span key={i} className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">
+                          {name}
+                        </span>
+                      ))}
+                      {quiz.student_names?.length > 3 && (
+                        <span className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">
+                          +{quiz.student_names.length - 3}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {user?.role === "student" && (
                   <button
-                    onClick={() => openEditModal(quiz)}
-                    className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all"
+                    onClick={() => startQuiz(quiz)}
+                    className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 flex items-center justify-center gap-2"
                   >
-                    Edit
+                    <Sparkles size={20} />
+                    Start Quiz
                   </button>
-                  <button
-                    onClick={() => handleDeleteClick(quiz)}
-                    className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                  >
-                    <Trash2 size={20} />
-                  </button>
-                </div>
-              )}
-            </motion.div>
-          ))
-        )}
+                )}
+                {user?.role === "teacher" && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => openEditModal(quiz)}
+                      className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDeleteClick(quiz)}
+                      className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                  </div>
+                )}
+              </motion.div>
+            ))
+          )}
       </div>
 
       {/* Add Quiz Modal */}
@@ -455,15 +548,16 @@ export default function QuizPage() {
                     {editingQuiz ? "Edit Quiz" : "Create New Quiz"}
                   </h2>
                   <p className="text-slate-500">
-                    {editingQuiz
-                      ? "Update your quiz details"
-                      : "Design a quiz for your students"}
+                    {step === 1 
+                      ? (editingQuiz ? "Update your quiz details" : "Design a quiz for your students")
+                      : "Assign this quiz to target students"}
                   </p>
                 </div>
                 <button
                   onClick={() => {
                     setShowAddModal(false);
                     setEditingQuiz(null);
+                    setStep(1);
                   }}
                   className="p-2 hover:bg-slate-100 rounded-full transition-colors"
                 >
@@ -472,114 +566,183 @@ export default function QuizPage() {
               </div>
 
               <form onSubmit={handleCreateQuiz} className="space-y-8">
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="col-span-2">
-                    <label className="block text-sm font-bold text-slate-700 mb-2">
-                      Quiz Title
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                      value={newQuiz.title}
-                      onChange={(e) =>
-                        setNewQuiz({ ...newQuiz, title: e.target.value })
-                      }
-                      placeholder="e.g. Introduction to React Hooks"
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="block text-sm font-bold text-slate-700 mb-2">
-                      Subject (Class & Semester)
-                    </label>
-                    <select
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                      value={newQuiz.subject_id}
-                      onChange={(e) =>
-                        setNewQuiz({ ...newQuiz, subject_id: e.target.value })
-                      }
-                    >
-                      {subjects.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name} ({s.class} • Sem {s.semester})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-slate-900">Questions</h3>
-                    <button
-                      type="button"
-                      onClick={addQuestion}
-                      className="text-sm font-bold text-blue-600 flex items-center gap-1 hover:underline"
-                    >
-                      <Plus size={16} /> Add Question
-                    </button>
-                  </div>
-
-                  {newQuiz.questions.map((q, qIdx) => (
-                    <div
-                      key={qIdx}
-                      className="p-6 bg-slate-50 rounded-3xl border border-slate-100 space-y-4 relative"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => removeQuestion(qIdx)}
-                        className="absolute top-4 right-4 text-slate-400 hover:text-red-500"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
-                          Question {qIdx + 1}
+                {step === 1 ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="col-span-2">
+                        <label className="block text-sm font-bold text-slate-700 mb-2">
+                          Quiz Title
                         </label>
                         <input
                           type="text"
                           required
-                          className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
-                          value={q.text}
-                          onChange={(e) => updateQuestion(qIdx, e.target.value)}
-                          placeholder="What is...?"
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                          value={newQuiz.title}
+                          onChange={(e) =>
+                            setNewQuiz({ ...newQuiz, title: e.target.value })
+                          }
+                          placeholder="e.g. Introduction to React Hooks"
                         />
                       </div>
+                      <div className="col-span-2">
+                        <label className="block text-sm font-bold text-slate-700 mb-2">
+                          Subject (Class & Semester)
+                        </label>
+                        <select
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                          value={newQuiz.subject_id}
+                          onChange={(e) =>
+                            setNewQuiz({ ...newQuiz, subject_id: e.target.value })
+                          }
+                        >
+                          {subjects.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name} ({s.class} • Sem {s.semester} • Year {s.year || Math.ceil(s.semester / 2)})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
 
-                      <div className="grid grid-cols-2 gap-4">
-                        {q.options.map((o, oIdx) => (
-                          <div key={oIdx} className="flex items-center gap-2">
-                            <input
-                              type="radio"
-                              name={`correct-${qIdx}`}
-                              checked={o.isCorrect}
-                              onChange={() => setCorrectOption(qIdx, oIdx)}
-                              className="w-4 h-4 text-blue-600"
-                            />
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-bold text-slate-900">Questions</h3>
+                        <button
+                          type="button"
+                          onClick={addQuestion}
+                          className="text-sm font-bold text-blue-600 flex items-center gap-1 hover:underline"
+                        >
+                          <Plus size={16} /> Add Question
+                        </button>
+                      </div>
+
+                      {newQuiz.questions.map((q, qIdx) => (
+                        <div
+                          key={qIdx}
+                          className="p-6 bg-slate-50 rounded-3xl border border-slate-100 space-y-4 relative"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => removeQuestion(qIdx)}
+                            className="absolute top-4 right-4 text-slate-400 hover:text-red-500"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
+                              Question {qIdx + 1}
+                            </label>
                             <input
                               type="text"
                               required
-                              className="flex-1 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                              value={o.text}
-                              onChange={(e) =>
-                                updateOption(qIdx, oIdx, e.target.value)
-                              }
-                              placeholder={`Option ${oIdx + 1}`}
+                              className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                              value={q.text}
+                              onChange={(e) => updateQuestion(qIdx, e.target.value)}
+                              placeholder="What is...?"
                             />
                           </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            {q.options.map((o, oIdx) => (
+                              <div key={oIdx} className="flex items-center gap-2">
+                                <input
+                                  type="radio"
+                                  name={`correct-${qIdx}`}
+                                  checked={o.isCorrect}
+                                  onChange={() => setCorrectOption(qIdx, oIdx)}
+                                  className="w-4 h-4 text-blue-600"
+                                />
+                                <input
+                                  type="text"
+                                  required
+                                  className="flex-1 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                                  value={o.text}
+                                  onChange={(e) =>
+                                    updateOption(qIdx, oIdx, e.target.value)
+                                  }
+                                  placeholder={`Option ${oIdx + 1}`}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-bold text-slate-900">Select Students</h3>
+                      <button
+                        type="button"
+                        onClick={selectAll}
+                        className="text-xs font-bold text-blue-600 hover:underline"
+                      >
+                        Select All
+                      </button>
+                    </div>
+                    {filteredStudents.length === 0 ? (
+                      <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                         <Users className="mx-auto text-slate-300 mb-2" />
+                         <p className="text-sm text-slate-500">No students found for this subject's class/semester.</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-3 max-h-96 overflow-y-auto pr-2">
+                        {filteredStudents.map((student) => (
+                          <label
+                            key={student.id}
+                            className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer transition-all border ${
+                              newQuiz.student_ids.includes(student.id)
+                                ? "bg-blue-50 border-blue-200 text-blue-700"
+                                : "bg-white border-slate-100 hover:border-slate-200"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              className="hidden"
+                              checked={newQuiz.student_ids.includes(student.id)}
+                              onChange={() => toggleStudent(student.id)}
+                            />
+                            <div
+                              className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${
+                                newQuiz.student_ids.includes(student.id)
+                                  ? "bg-blue-600 border-blue-600"
+                                  : "border-slate-300"
+                              }`}
+                            >
+                              {newQuiz.student_ids.includes(student.id) && (
+                                <CheckSquare size={14} className="text-white" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold truncate">{student.name}</p>
+                              <p className="text-[10px] opacity-70 truncate">@{student.username}</p>
+                            </div>
+                          </label>
                         ))}
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    )}
+                  </div>
+                )}
 
-                <button
-                  type="submit"
-                  className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
-                >
-                  {editingQuiz ? "Update Quiz" : "Publish Quiz"}
-                </button>
+                <div className="flex gap-4">
+                  {step === 2 && (
+                    <button
+                      type="button"
+                      onClick={() => setStep(1)}
+                      className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-all"
+                    >
+                      Back
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
+                  >
+                    {step === 1 ? "Next: Select Students" : (editingQuiz ? "Update Quiz" : "Publish Quiz")}
+                  </button>
+                </div>
               </form>
             </motion.div>
           </div>
@@ -598,7 +761,7 @@ export default function QuizPage() {
               {isGenerating && (
                 <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
                    <Sparkles className="text-purple-600 animate-pulse mb-4 w-12 h-12" />
-                   <h3 className="text-lg font-bold text-slate-800">Sarvam AI is analyzing your PDF...</h3>
+                   <h3 className="text-lg font-bold text-slate-800"> AI is analyzing your PDF...</h3>
                    <p className="text-sm text-slate-500 mt-2">Generating questions and answers</p>
                 </div>
               )}
@@ -622,11 +785,19 @@ export default function QuizPage() {
                    <label className="block text-sm font-bold text-slate-700 mb-2">
                      Study Material (PDF/DOCX)
                    </label>
-                   <div className="w-full border-2 border-dashed border-slate-300 rounded-2xl p-8 text-center hover:bg-slate-50 hover:border-purple-400 transition-colors cursor-pointer">
+                   <label className="w-full flex-col border-2 border-dashed border-slate-300 rounded-2xl p-8 flex items-center justify-center hover:bg-slate-50 hover:border-purple-400 transition-colors cursor-pointer">
                       <BookOpen className="mx-auto text-slate-400 mb-3" size={32} />
-                      <p className="text-sm font-bold text-slate-700">Click to upload or drag & drop</p>
+                      <p className="text-sm font-bold text-slate-700">
+                        {aiFile ? aiFile.name : "Click to upload or drag & drop"}
+                      </p>
                       <p className="text-xs text-slate-500 mt-1">Maximum file size 10MB</p>
-                   </div>
+                      <input 
+                        type="file" 
+                        accept=".pdf,.txt,.docx" 
+                        className="hidden" 
+                        onChange={(e) => setAiFile(e.target.files[0])} 
+                      />
+                   </label>
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-2">Target Subject</label>
@@ -637,7 +808,7 @@ export default function QuizPage() {
                   >
                     {subjects.map((s) => (
                       <option key={s.id} value={s.id}>
-                        {s.name} ({s.class} • Sem {s.semester})
+                        {s.name} ({s.class} • Sem {s.semester} • Year {s.year || Math.ceil(s.semester / 2)})
                       </option>
                     ))}
                   </select>

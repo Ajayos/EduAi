@@ -13,6 +13,8 @@ import VerificationManager from "./pages/VerificationManager";
 import QuizPage from "./pages/QuizPage";
 import FlashcardPage from "./pages/FlashcardPage";
 import MarksManagement from "./pages/MarksManagement";
+import AttendanceManagement from "./pages/AttendanceManagement";
+import StudentProfiles from "./pages/StudentProfiles";
 import NotificationsPage from "./pages/NotificationsPage";
 
 export default function App() {
@@ -40,6 +42,8 @@ export default function App() {
       case "teacher":
         if (activeTab === "Students") return <FacultyDashboard />;
         if (activeTab === "Marks") return <MarksManagement />;
+        if (activeTab === "Attendance") return <AttendanceManagement />;
+        if (activeTab === "Profiles") return <StudentProfiles />;
         if (activeTab === "Assignments") return <AssignmentsPage />;
         if (activeTab === "Quizzes") return <QuizPage />;
         if (activeTab === "Flashcards") return <FlashcardPage />;

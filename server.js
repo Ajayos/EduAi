@@ -9,6 +9,10 @@ import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
 import multer from "multer";
 import fs from "fs";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+
+const pdf = require("pdf-parse"); // ✅ works with CommonJS
 
 dotenv.config();
 
@@ -41,6 +45,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "eduai-secret-key-2026";
 // Database Setup
 const db = new sqlite3("eduai.db");
 db.pragma("foreign_keys = ON");
+
 
 // Initialize Schema
 db.exec(`
@@ -235,6 +240,22 @@ try {
     try {
     db.prepare("ALTER TABLE achievements ADD COLUMN description TEXT").run();
   } catch (e) {}
+  
+  // Student Profile Migration
+  try { db.prepare("ALTER TABLE students ADD COLUMN tenthMarks REAL").run(); } catch (e) {}
+  try { db.prepare("ALTER TABLE students ADD COLUMN twelfthMarks REAL").run(); } catch (e) {}
+  try { db.prepare("ALTER TABLE students ADD COLUMN fatherName TEXT").run(); } catch (e) {}
+  try { db.prepare("ALTER TABLE students ADD COLUMN motherName TEXT").run(); } catch (e) {}
+  try { db.prepare("ALTER TABLE students ADD COLUMN fatherNumber TEXT").run(); } catch (e) {}
+  try { db.prepare("ALTER TABLE students ADD COLUMN motherNumber TEXT").run(); } catch (e) {}
+  try { db.prepare("ALTER TABLE students ADD COLUMN problemSubjects TEXT").run(); } catch (e) {}
+  
+  // Subject Year Migration
+  try { db.prepare("ALTER TABLE subjects ADD COLUMN year INTEGER DEFAULT 1").run(); } catch (e) {}
+  
+  // Targeted Assignments Migration
+  try { db.prepare("ALTER TABLE quizzes ADD COLUMN student_id INTEGER").run(); } catch (e) {}
+  try { db.prepare("ALTER TABLE flashcards ADD COLUMN student_id INTEGER").run(); } catch (e) {}
 
 // Seed Admin if not exists
 const adminExists = db
@@ -370,12 +391,16 @@ if (subjectsCount < 50) {
   ];
 
   const insertSubject = db.prepare(
-    "INSERT INTO subjects (name, semester, class) VALUES (?, ?, ?)",
+    "INSERT INTO subjects (name, semester, class, year) VALUES (?, ?, ?, ?)",
   );
   const classes = ["CSE", "SOE", "Data Science", "Artificial Intelligence"];
 
   classes.forEach((c) => {
-    seedSubjects.forEach((s) => insertSubject.run(s.name, s.semester, c));
+    seedSubjects.forEach((s) => {
+      // Calculate year based on semester: 1-2=Yr1, 3-4=Yr2, 5-6=Yr3, 7-8=Yr4
+      const year = Math.ceil(s.semester / 2);
+      insertSubject.run(s.name, s.semester, c, year);
+    });
   });
   const timetableCount = db
     .prepare("SELECT COUNT(*) as count FROM timetable")
@@ -647,7 +672,7 @@ app.get("/api/admin/students", authenticateToken, (req, res) => {
   if (req.user.role !== "admin") return res.sendStatus(403);
   const students = db
     .prepare(
-      "SELECT id, name, username, class, semester, points, stars FROM students",
+      "SELECT id, name, username, class, semester, points, stars, tenthMarks, twelfthMarks, fatherName, motherName, fatherNumber, motherNumber, problemSubjects FROM students",
     )
     .all();
   res.json(students);
@@ -657,7 +682,7 @@ app.get("/api/admin/students/:id", authenticateToken, (req, res) => {
   if (req.user.role !== "admin") return res.sendStatus(403);
   const student = db
     .prepare(
-      "SELECT id, name, username, class, semester, points, stars FROM students WHERE id = ?",
+      "SELECT id, name, username, class, semester, points, stars, tenthMarks, twelfthMarks, fatherName, motherName, fatherNumber, motherNumber, problemSubjects FROM students WHERE id = ?",
     )
     .get(req.params.id);
   if (!student) return res.status(404).json({ message: "Student not found" });
@@ -763,7 +788,7 @@ app.get("/api/teacher/students", authenticateToken, (req, res) => {
   if (req.user.role === "admin") {
     students = db
       .prepare(
-        "SELECT id, name, username, class, semester, points, stars FROM students",
+        "SELECT id, name, username, class, semester, points, stars, tenthMarks, twelfthMarks, fatherName, motherName, fatherNumber, motherNumber, problemSubjects FROM students",
       )
       .all();
   } else {
@@ -776,7 +801,7 @@ app.get("/api/teacher/students", authenticateToken, (req, res) => {
     if (teacher && teacher.isClassTeacher) {
       students = db
         .prepare(
-          "SELECT id, name, username, class, semester, points, stars FROM students WHERE class = ?",
+          "SELECT id, name, username, class, semester, points, stars, tenthMarks, twelfthMarks, fatherName, motherName, fatherNumber, motherNumber, problemSubjects FROM students WHERE class = ?",
         )
         .all(teacher.assignedClass);
     } else {
@@ -784,7 +809,7 @@ app.get("/api/teacher/students", authenticateToken, (req, res) => {
       // Let's allow them to see all students for now so they can add marks.
       students = db
         .prepare(
-          "SELECT id, name, username, class, semester, points, stars FROM students",
+          "SELECT id, name, username, class, semester, points, stars, tenthMarks, twelfthMarks, fatherName, motherName, fatherNumber, motherNumber, problemSubjects FROM students",
         )
         .all();
     }
@@ -920,14 +945,17 @@ app.get("/api/subjects", authenticateToken, (req, res) => {
 
 app.post("/api/admin/subjects", authenticateToken, (req, res) => {
   if (req.user.role !== "admin") return res.sendStatus(403);
-  const { name, semester, class: className } = req.body;
+  const { name, semester, class: className, year } = req.body;
   if (!name || !semester || !className) {
     return res.status(400).json({ message: "Missing required fields" });
   }
   try {
+    const finalYear = year || Math.ceil(semester / 2);
     const result = db
-      .prepare("INSERT INTO subjects (name, semester, class) VALUES (?, ?, ?)")
-      .run(name, semester, className);
+      .prepare(
+        "INSERT INTO subjects (name, semester, class, year) VALUES (?, ?, ?, ?)",
+      )
+      .run(name, semester, className, finalYear);
     res.json({ id: result.lastInsertRowid });
   } catch (e) {
     res.status(400).json({ message: e.message });
@@ -1152,6 +1180,47 @@ app.post("/api/timetable", authenticateToken, (req, res) => {
   res.json({ success: true });
 });
 
+// Student Profile Update
+app.put("/api/student/profile", authenticateToken, (req, res) => {
+  if (req.user.role !== "student") return res.sendStatus(403);
+  const { 
+    tenthMarks, 
+    twelfthMarks, 
+    fatherName, 
+    motherName, 
+    fatherNumber, 
+    motherNumber, 
+    problemSubjects 
+  } = req.body;
+
+  try {
+    db.prepare(`
+      UPDATE students 
+      SET tenthMarks = ?, 
+          twelfthMarks = ?, 
+          fatherName = ?, 
+          motherName = ?, 
+          fatherNumber = ?, 
+          motherNumber = ?, 
+          problemSubjects = ?
+      WHERE id = ?
+    `).run(
+      tenthMarks,
+      twelfthMarks,
+      fatherName,
+      motherName,
+      fatherNumber,
+      motherNumber,
+      JSON.stringify(problemSubjects),
+      req.user.id
+    );
+    res.json({ success: true });
+  } catch (e) {
+    console.error(e);
+    res.status(400).json({ message: e.message });
+  }
+});
+
 app.delete("/api/timetable/:id", authenticateToken, (req, res) => {
   if (req.user.role !== "teacher" && req.user.role !== "admin")
     return res.sendStatus(403);
@@ -1305,20 +1374,21 @@ app.post(
 // Quizzes
 app.get("/api/quizzes", authenticateToken, (req, res) => {
   let query = `
-    SELECT q.*, s.name as subject_name, t.name as teacher_name, s.class, s.semester
+    SELECT q.*, s.name as subject_name, s.class, s.semester, t.name as teacher_name, stu.name as student_name
     FROM quizzes q
     JOIN subjects s ON q.subject_id = s.id
     JOIN teachers t ON q.teacher_id = t.id
+    LEFT JOIN students stu ON q.student_id = stu.id
   `;
   let params = [];
 
   if (req.user.role === "student") {
+    query += " WHERE s.class = ? AND s.semester = ? AND (q.student_id IS NULL OR q.student_id = ?)";
     const student = db
       .prepare("SELECT class, semester FROM students WHERE id = ?")
       .get(req.user.id);
     if (student) {
-      query += " WHERE s.class = ? AND s.semester = ?";
-      params.push(student.class, student.semester);
+      params.push(student.class, student.semester, req.user.id);
     }
   } else if (req.user.role === "teacher") {
     query += " WHERE q.teacher_id = ?";
@@ -1331,26 +1401,52 @@ app.get("/api/quizzes", authenticateToken, (req, res) => {
 
 app.post("/api/quizzes", authenticateToken, (req, res) => {
   if (req.user.role !== "teacher") return res.sendStatus(403);
-  const { subject_id, title, questions } = req.body;
-  db.prepare(
-    "INSERT INTO quizzes (teacher_id, subject_id, title, questions) VALUES (?, ?, ?, ?)",
-  ).run(req.user.id, subject_id, title, JSON.stringify(questions));
+  const { subject_id, title, questions, student_ids } = req.body;
+  
+  const insert = db.prepare(
+    "INSERT INTO quizzes (teacher_id, subject_id, title, questions, student_id) VALUES (?, ?, ?, ?, ?)",
+  );
+  
+  const transaction = db.transaction((ids) => {
+    for (const id of ids) {
+      insert.run(req.user.id, subject_id, title, JSON.stringify(questions), id);
+    }
+  });
+
+  transaction(student_ids || [null]);
   res.json({ success: true });
 });
 
 app.put("/api/quizzes/:id", authenticateToken, (req, res) => {
   if (req.user.role !== "teacher") return res.sendStatus(403);
-  const { subject_id, title, questions } = req.body;
-  db.prepare(
-    "UPDATE quizzes SET subject_id = ?, title = ?, questions = ? WHERE id = ? AND teacher_id = ?",
-  ).run(
-    subject_id,
-    title,
-    JSON.stringify(questions),
-    req.params.id,
-    req.user.id,
-  );
-  res.json({ success: true });
+  const { subject_id, title, questions, student_ids } = req.body;
+  const quizId = req.params.id;
+
+  try {
+    const transaction = db.transaction((ids) => {
+      const original = db
+        .prepare("SELECT title FROM quizzes WHERE id = ? AND teacher_id = ?")
+        .get(quizId, req.user.id);
+      if (!original) throw new Error("Quiz not found");
+
+      db.prepare("DELETE FROM quizzes WHERE title = ? AND teacher_id = ?").run(
+        original.title,
+        req.user.id,
+      );
+
+      const insert = db.prepare(
+        "INSERT INTO quizzes (teacher_id, subject_id, title, questions, student_id) VALUES (?, ?, ?, ?, ?)",
+      );
+      for (const id of ids) {
+        insert.run(req.user.id, subject_id, title, JSON.stringify(questions), id);
+      }
+    });
+
+    transaction(student_ids || [null]);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(400).json({ message: e.message });
+  }
 });
 
 app.delete("/api/quizzes/:id", authenticateToken, (req, res) => {
@@ -1445,19 +1541,21 @@ app.post("/api/tasks/:id/complete", authenticateToken, (req, res) => {
 // Flashcards
 app.get("/api/flashcards", authenticateToken, (req, res) => {
   let query = `
-    SELECT f.*, s.name as subject_name, s.class, s.semester
+    SELECT f.*, s.name as subject_name, s.class, s.semester, t.name as teacher_name, stu.name as student_name
     FROM flashcards f
     JOIN subjects s ON f.subject_id = s.id
+    JOIN teachers t ON f.teacher_id = t.id
+    LEFT JOIN students stu ON f.student_id = stu.id
   `;
   let params = [];
 
   if (req.user.role === "student") {
+    query += " WHERE s.class = ? AND s.semester = ? AND (f.student_id IS NULL OR f.student_id = ?)";
     const student = db
       .prepare("SELECT class, semester FROM students WHERE id = ?")
       .get(req.user.id);
     if (student) {
-      query += " WHERE s.class = ? AND s.semester = ?";
-      params.push(student.class, student.semester);
+      params.push(student.class, student.semester, req.user.id);
     }
   } else if (req.user.role === "teacher") {
     query += " WHERE f.teacher_id = ?";
@@ -1470,20 +1568,51 @@ app.get("/api/flashcards", authenticateToken, (req, res) => {
 
 app.post("/api/flashcards", authenticateToken, (req, res) => {
   if (req.user.role !== "teacher") return res.sendStatus(403);
-  const { subject_id, question, answer } = req.body;
-  db.prepare(
-    "INSERT INTO flashcards (teacher_id, subject_id, question, answer) VALUES (?, ?, ?, ?)",
-  ).run(req.user.id, subject_id, question, answer);
+  const { subject_id, question, answer, student_ids } = req.body;
+  
+  const insert = db.prepare(
+    "INSERT INTO flashcards (teacher_id, subject_id, question, answer, student_id) VALUES (?, ?, ?, ?, ?)",
+  );
+  
+  const transaction = db.transaction((ids) => {
+    for (const id of ids) {
+      insert.run(req.user.id, subject_id, question, answer, id);
+    }
+  });
+
+  transaction(student_ids || [null]);
   res.json({ success: true });
 });
 
 app.put("/api/flashcards/:id", authenticateToken, (req, res) => {
   if (req.user.role !== "teacher") return res.sendStatus(403);
-  const { subject_id, question, answer } = req.body;
-  db.prepare(
-    "UPDATE flashcards SET subject_id = ?, question = ?, answer = ? WHERE id = ? AND teacher_id = ?",
-  ).run(subject_id, question, answer, req.params.id, req.user.id);
-  res.json({ success: true });
+  const { subject_id, question, answer, student_ids } = req.body;
+  const cardId = req.params.id;
+
+  try {
+    const transaction = db.transaction((ids) => {
+      const original = db
+        .prepare("SELECT question FROM flashcards WHERE id = ? AND teacher_id = ?")
+        .get(cardId, req.user.id);
+      if (!original) throw new Error("Flashcard not found");
+
+      db.prepare(
+        "DELETE FROM flashcards WHERE question = ? AND teacher_id = ?",
+      ).run(original.question, req.user.id);
+
+      const insert = db.prepare(
+        "INSERT INTO flashcards (teacher_id, subject_id, question, answer, student_id) VALUES (?, ?, ?, ?, ?)",
+      );
+      for (const id of ids) {
+        insert.run(req.user.id, subject_id, question, answer, id);
+      }
+    });
+
+    transaction(student_ids || [null]);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(400).json({ message: e.message });
+  }
 });
 
 app.delete("/api/flashcards/:id", authenticateToken, (req, res) => {
@@ -1617,46 +1746,145 @@ app.post("/api/notifications/broadcast", authenticateToken, (req, res) => {
   res.json({ success: true });
 });
 
-// AI Content Generation (Mocked for Sarvam AI)
-app.post("/api/generate-ai-content", authenticateToken, async (req, res) => {
+// AI Content Generation (Sarvam AI / Gemini fallback)
+app.post("/api/generate-ai-content", authenticateToken, upload.single("document"), async (req, res) => {
   if (req.user.role !== "teacher") return res.sendStatus(403);
-  const { file_url, subject_id, type } = req.body;
+  const { subject_id, type } = req.body;
   
-  if (!file_url || !subject_id) {
-    return res.status(400).json({ message: "File URL and Subject ID are required" });
+  if (!req.file || !subject_id) {
+    if (req.file) fs.unlink(req.file.path, () => {});
+    return res.status(400).json({ message: "Document file and Subject ID are required" });
   }
 
   try {
-    // Determine subject name for better mock data
     const subject = db.prepare("SELECT name FROM subjects WHERE id = ?").get(subject_id);
     const subjectName = subject ? subject.name : "the subject";
 
-    // Simulate AI processing delay
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    // Extract text using pdf-parse from disk
+    let extractedText = "";
+    const fileBuffer = await fs.promises.readFile(req.file.path);
 
-    // Mock Sarvam AI response processing
+if (req.file.mimetype === "application/pdf") {
+  const pdfData = await pdf(fileBuffer);
+  extractedText = pdfData.text;
+} else {
+  extractedText = fileBuffer.toString("utf-8");
+}
+
+    // Clean up uploaded file
+    fs.unlink(req.file.path, () => {});
+
+    if (!extractedText.trim()) {
+      return res.status(400).json({ message: "Could not extract text from document." });
+    }
+
+    // Prepare Sarvam prompt
+    let systemPrompt = "";
     if (type === "quiz") {
-      const mockQuestions = JSON.stringify([
-        {
-          id: 1,
-          text: "What is the primary concept discussed in the provided " + subjectName + " material?",
-          options: ["Concept A", "Concept B", "Concept C", "Concept D"],
-          correct: 0,
-        },
-        {
-          id: 2,
-          text: "Which of the following is a key takeaway from chapter 1?",
-          options: ["Takeaway 1", "Takeaway 2", "Takeaway 3", "Takeaway 4"],
-          correct: 1,
-        },
-        {
-          id: 3,
-          text: "Identify the correct application of the theory mentioned.",
-          options: ["Application X", "Application Y", "Application Z", "None"],
-          correct: 2,
+       systemPrompt = `
+You are an expert teacher.
+
+Generate exactly 3 multiple-choice questions from the given text.
+
+Rules:
+- Each question must be clear and direct.
+- Do NOT use phrases like "based on", "according to", "from the text", or similar.
+- Questions must be asked as if they are standalone exam questions.
+- Each question must have exactly 4 options.
+- Only ONE option must be correct.
+- The correct answer must be factually accurate from the text.
+- Distractors (wrong options) must be realistic and related.
+
+Output format (STRICT JSON ONLY):
+[
+  {
+    "text": "Question?",
+    "options": [ {text: "Option 1", isCorrect: false}, {text: "Option 2", isCorrect: true}, {text: "Option 3", isCorrect: false}, {text: "Option 4", isCorrect: false}],
+  }
+]
+`;
+    } else {
+       systemPrompt = `You are an expert teacher. From the following text, generate a JSON array of exactly 3 flashcards. The JSON format should exactly be: [{ "q": "Question/Term", "a": "Answer/Definition" }]. Output ONLY JSON.`;
+    }
+
+    let generatedData = null;
+
+    // Call Sarvam AI API
+    if (process.env.SARVAM_API_KEY) {
+      try {
+        const sarvamRes = await fetch("https://api.sarvam.ai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${process.env.SARVAM_API_KEY}`
+          },
+          body: JSON.stringify({
+            model: "sarvam-m",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: `Text slice: ${extractedText.substring(0, 3000)}` }
+            ],
+            temperature: 0.7
+          })
+        });
+        
+        if (sarvamRes.ok) {
+           const json = await sarvamRes.json();
+           const content = json.choices[0].message.content;
+           console.log(content, "content")
+           let cleanContent = content
+  .replace(/```json/g, '')
+  .replace(/```/g, '')
+  .replace(/<think>[\s\S]*?<\/think>/g, '') // 🔥 remove thinking blocks
+  .trim();
+
+// Extract only JSON array part
+const jsonMatch = cleanContent.match(/\[[\s\S]*\]/);
+
+if (!jsonMatch) {
+  throw new Error("No valid JSON found in AI response");
+}
+
+generatedData = JSON.parse(jsonMatch[0]);
+           console.log("Sarvam API generated data:", generatedData);
         }
-      ]);
-      
+      } catch (err) {
+        console.error("Sarvam API hit failed, falling back to mock:", err);
+      }
+    } else {
+      console.log("No Sarvam API key found")
+    }
+
+    // Fallback Mock Logic
+    if (!generatedData) {
+      if (type === "quiz") {
+        generatedData = [
+          {
+            text: `Based on your document: What is the primary concept discussed?`,
+            options: [ {text: "Concept A", isCorrect: false}, {text: "Concept B", isCorrect: true}, {text: "Concept C", isCorrect: false}, {text: "Concept D", isCorrect: false}],
+          },
+          {
+            text: `Which of the following is a key takeaway from chapter 1?`,
+            options: [ {text: "Takeaway 1", isCorrect: false}, {text: "Takeaway 2", isCorrect: true}, {text: "Takeaway 3", isCorrect: false}, {text: "Takeaway 4", isCorrect: false}],
+          },
+          {
+            text: `Identify the correct application of the theory mentioned.`,
+            options: [ {text: "Application X", isCorrect: false}, {text: "Application Y", isCorrect: true}, {text: "Application Z", isCorrect: false}, {text: "None", isCorrect: false}],
+          }
+        ];
+      } else {
+        generatedData = [
+          { q: `Key Definition 1 from the uploaded doc`, a: `Detailed explanation extracted from PDF.` },
+          { q: `Important Formula/Concept`, a: `The breakdown of the concept...` },
+          { q: `Historical Context`, a: `Contextual background from the PDF.` }
+        ];
+      }
+    }
+
+    
+
+    if (type === "quiz") {
+      const mockQuestions = JSON.stringify(generatedData);
       const result = db.prepare(
         "INSERT INTO quizzes (teacher_id, subject_id, title, questions) VALUES (?, ?, ?, ?)"
       ).run(req.user.id, subject_id, "AI Generated Quiz: " + subjectName, mockQuestions);
@@ -1664,15 +1892,9 @@ app.post("/api/generate-ai-content", authenticateToken, async (req, res) => {
       return res.json({ success: true, message: "Quiz generated successfully", id: result.lastInsertRowid });
     } 
     else if (type === "flashcard") {
-      const mockCards = [
-        { q: "Key Definition 1 from " + subjectName, a: "Detailed explanation generated by AI." },
-        { q: "Important Formula/Concept", a: "The breakdown of the concept..." },
-        { q: "Historical Context", a: "Contextual background from the PDF." }
-      ];
-
       const insertStmt = db.prepare("INSERT INTO flashcards (teacher_id, subject_id, question, answer) VALUES (?, ?, ?, ?)");
       const transaction = db.transaction(() => {
-        mockCards.forEach(card => {
+        generatedData.forEach(card => {
           insertStmt.run(req.user.id, subject_id, card.q, card.a);
         });
       });

@@ -26,6 +26,11 @@ import {
   Tooltip,
   ResponsiveContainer,
   Cell,
+  Radar,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
 } from "recharts";
 
 export default function TeacherDashboard({ setActiveTab }) {
@@ -97,7 +102,7 @@ export default function TeacherDashboard({ setActiveTab }) {
     Promise.all([
       api.getStudents(),
       api.getAssignments(),
-      api.getSubjects(),
+      api.getTeacherSubjects(),
       api.getFaculty(),
       api.getAssignmentAnalytics(),
       api.getQuizAnalytics(),
@@ -931,6 +936,300 @@ export default function TeacherDashboard({ setActiveTab }) {
         confirmText="Delete Account"
         type="danger"
       />
+
+      {/* Attendance Modal */}
+      {showAttendanceModal && selectedStudent && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xl flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0, y: 30 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            className="w-full max-w-3xl bg-white rounded-[3rem] shadow-2xl flex flex-col relative overflow-hidden ring-4 ring-white/20"
+          >
+            {/* Header Area with Glassmorphism */}
+            <div className="relative bg-gradient-to-br from-emerald-500 via-teal-600 to-cyan-700 p-8 lg:p-10 text-white shrink-0">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
+              <div className="absolute bottom-0 left-0 w-40 h-40 bg-cyan-400/20 rounded-full blur-3xl translate-y-1/2 -translate-x-1/3"></div>
+              
+              <div className="relative z-10 flex items-start justify-between">
+                <div className="flex items-center gap-5 text-white">
+                  <div className="w-20 h-20 bg-white/10 backdrop-blur-md rounded-[1.5rem] border-2 border-white/20 flex items-center justify-center text-4xl font-black shadow-2xl">
+                    {selectedStudent.name.charAt(0)}
+                  </div>
+                  <div>
+                    <span className="px-3 py-1 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-[10px] font-bold uppercase tracking-widest text-emerald-100 mb-2 inline-block">
+                      Attendance Management
+                    </span>
+                    <h2 className="text-3xl font-black tracking-tight drop-shadow-sm mb-1">{selectedStudent.name}</h2>
+                    <p className="text-emerald-100 font-medium tracking-wide flex items-center gap-2 text-sm">
+                      @{selectedStudent.username} • {selectedStudent.class} • Sem {selectedStudent.semester}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowAttendanceModal(false)}
+                  className="bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md text-white p-3 rounded-full transition-all"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-8 lg:p-10 bg-slate-50/50 space-y-8 flex-1 overflow-y-auto">
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Recent History */}
+                <div className="bg-white p-6 lg:p-8 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col h-full hover:shadow-md transition-shadow">
+                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                    <Clock size={16} /> Recent History
+                  </h3>
+                  <div className="space-y-4 overflow-y-auto flex-1 pr-2 max-h-[280px]">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="flex flex-col gap-2 p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-emerald-100 hover:bg-emerald-50/50 transition-colors">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-bold text-slate-700">Object Oriented Programming</span>
+                          <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-md text-[10px] uppercase font-black tracking-wider shadow-sm">Present</span>
+                        </div>
+                        <span className="text-xs text-slate-400 font-medium tracking-wide">March {20 - i}, 2026</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Log Entry Form */}
+                <form onSubmit={handleUpdateAttendance} className="bg-white p-6 lg:p-8 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col h-full relative overflow-hidden group hover:shadow-md transition-shadow">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-colors"></div>
+                  <h3 className="text-sm font-bold text-emerald-600 uppercase tracking-widest mb-6 flex items-center gap-2 relative z-10">
+                    <CheckCircle size={16} /> Log New Entry
+                  </h3>
+                  
+                  <div className="space-y-6 relative z-10 flex-1">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Date</label>
+                      <input
+                        type="date"
+                        required
+                        className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white hover:border-emerald-200 transition-all font-bold text-slate-700"
+                        value={attendanceData.date}
+                        onChange={(e) => setAttendanceData({ ...attendanceData, date: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Status</label>
+                      <select
+                        className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white hover:border-emerald-200 transition-all font-bold text-slate-700"
+                        value={attendanceData.status}
+                        onChange={(e) => setAttendanceData({ ...attendanceData, status: e.target.value })}
+                      >
+                        <option value="Present">Present</option>
+                        <option value="Absent">Absent</option>
+                        <option value="Late">Late</option>
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <button
+                    type="submit"
+                    className="w-full mt-8 py-4 bg-emerald-500 text-white rounded-2xl font-black tracking-wide hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-200 relative z-10 hover:shadow-xl hover:-translate-y-1"
+                  >
+                    Confirm Attendance
+                  </button>
+                </form>
+              </div>
+
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Stunning Student Profile Modal */}
+      {showProfileModal && profileData && selectedStudent && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xl flex items-center justify-center z-50 p-4 lg:p-10">
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0, y: 30 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            className="w-full max-w-6xl h-full max-h-[90vh] bg-white rounded-[3rem] shadow-2xl flex flex-col relative overflow-hidden ring-4 ring-white/20"
+          >
+            {/* Header Area with Glassmorphism */}
+            <div className="relative bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 p-8 lg:p-12 text-white shrink-0">
+              <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
+              <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-purple-500/20 rounded-full blur-3xl translate-y-1/2 -translate-x-1/3"></div>
+              
+              <div className="relative z-10 flex items-start justify-between">
+                <div className="flex items-center gap-6 text-white">
+                  <div className="w-24 h-24 bg-white/10 backdrop-blur-md rounded-[2rem] border-2 border-white/20 flex items-center justify-center text-5xl font-black shadow-2xl">
+                    {selectedStudent.name.charAt(0)}
+                  </div>
+                  <div>
+                    <h2 className="text-4xl font-black tracking-tight drop-shadow-sm mb-1">{selectedStudent.name}</h2>
+                    <p className="text-indigo-100 font-medium tracking-wide flex items-center gap-2">
+                      @{selectedStudent.username} • {selectedStudent.class} • Sem {selectedStudent.semester}
+                    </p>
+                    <div className="mt-4 flex gap-3">
+                      <span className="px-3 py-1 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-xs font-bold uppercase tracking-widest text-emerald-300">
+                        {profileData.calculatedPercentage >= 75 ? "Excellent Standing" : "Needs Review"}
+                      </span>
+                      <span className="px-3 py-1 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-xs font-bold uppercase tracking-widest text-yellow-300 flex items-center gap-1">
+                        <Star size={12} className="fill-yellow-300"/> Top 10%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowProfileModal(false)}
+                  className="bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md text-white p-3 rounded-full transition-all"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto bg-slate-50/50 p-8 lg:p-12">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                
+                {/* Left Column: Grade Calculation */}
+                <div className="lg:col-span-2 space-y-8">
+                  <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3">
+                    <TrendingUp className="text-blue-500" /> Academic Breakdown
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Module Tests */}
+                    <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-start mb-6">
+                        <div>
+                          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Module Tests</p>
+                          <p className="text-3xl font-black text-slate-800">{profileData.totalModules}<span className="text-lg text-slate-400">/100</span></p>
+                        </div>
+                        <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-500">
+                          <CheckCircle size={24} />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        {profileData.detailedMarks.moduleTests.map((m, i) => (
+                          <div key={i} className="flex justify-between items-center text-sm">
+                            <span className="text-slate-500 font-medium">Module {i + 1} (20)</span>
+                            <span className="font-bold text-slate-700">{m}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Internals & Assignments */}
+                    <div className="space-y-4">
+                      {/* Internals */}
+                      <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex justify-between items-center mb-4">
+                          <div>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Internals</p>
+                            <p className="text-3xl font-black text-slate-800">{profileData.totalInternals}<span className="text-lg text-slate-400">/100</span></p>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-slate-500">First Internal (50)</span>
+                            <span className="font-bold text-slate-700">{profileData.detailedMarks.internalExams[0]}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-slate-500">Second Internal (50)</span>
+                            <span className="font-bold text-slate-700">{profileData.detailedMarks.internalExams[1]}</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Assignment */}
+                      <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Assignment</p>
+                            <p className="text-3xl font-black text-slate-800">{profileData.detailedMarks.assignment}<span className="text-lg text-slate-400">/20</span></p>
+                          </div>
+                          <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center text-purple-500">
+                            <BookOpen size={24} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column: Radar Chart & Final CGPA */}
+                <div className="space-y-8">
+                  {/* Performance Radar */}
+                  <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col items-center">
+                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 w-full text-left">Skill Matrix</h3>
+                    <div className="w-full h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <RadarChart cx="50%" cy="50%" outerRadius="70%" data={[
+                          { subject: "Theory", A: Math.max(50, profileData.totalModules), fullMark: 100 },
+                          { subject: "Practicals", A: Math.random() * 40 + 60, fullMark: 100 },
+                          { subject: "Attendance", A: selectedStudent.attendance, fullMark: 100 },
+                          { subject: "Assignments", A: profileData.detailedMarks.assignment * 5, fullMark: 100 },
+                          { subject: "Exams", A: profileData.totalInternals, fullMark: 100 }
+                        ]}>
+                          <PolarGrid stroke="#e2e8f0" />
+                          <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} />
+                          <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+                          <Radar name="Student" dataKey="A" stroke="#6366f1" strokeWidth={3} fill="#818cf8" fillOpacity={0.5} />
+                          <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)' }}/>
+                        </RadarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  {/* Calculated Grand Total Ticket */}
+                  <div className="relative p-[3px] rounded-[2rem] bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 overflow-hidden shadow-2xl shadow-indigo-200 group">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:translate-x-full duration-1000 ease-in-out transition-transform z-10"></div>
+                    <div className="bg-white rounded-[1.8rem] p-8 h-full flex flex-col items-center text-center relative z-20">
+                      <p className="text-xs font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-500 uppercase tracking-[0.2em] mb-4">
+                        Aggregate CGPA Index
+                      </p>
+                      <div className="text-7xl font-black text-slate-800 tracking-tighter mb-2">
+                        {profileData.calculatedPercentage}<span className="text-2xl text-slate-400">%</span>
+                      </div>
+                      <p className="text-sm font-medium text-slate-500 mb-6">
+                        Grand Total: {profileData.grandTotal} / 220
+                      </p>
+                      
+                      <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden shadow-inner">
+                        <motion.div 
+                          className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${profileData.calculatedPercentage}%` }}
+                          transition={{ duration: 1.5, ease: "easeOut" }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Student Background Details */}
+                  <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm">
+                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <Users size={16} /> Background Info
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col items-center text-center">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">10th Marks</p>
+                        <p className="text-xl font-black text-slate-800">{selectedStudent.tenthMarks || "N/A"}{selectedStudent.tenthMarks ? "%" : ""}</p>
+                      </div>
+                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col items-center text-center">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">12th Marks</p>
+                        <p className="text-xl font-black text-slate-800">{selectedStudent.twelfthMarks || "N/A"}{selectedStudent.twelfthMarks ? "%" : ""}</p>
+                      </div>
+                    </div>
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Guardian</p>
+                      <p className="font-bold text-slate-800 mb-1">{selectedStudent.parentsName || "Not Provided"}</p>
+                      <p className="text-sm text-slate-500 flex items-center gap-1.5"><Star size={12}/> {selectedStudent.parentsNumber || "No Contact"}</p>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

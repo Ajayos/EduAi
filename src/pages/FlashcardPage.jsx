@@ -12,6 +12,8 @@ import {
   Plus,
   X,
   Trash2,
+  Users,
+  CheckSquare,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ConfirmationModal from "../components/ConfirmationModal";
@@ -30,16 +32,21 @@ export default function FlashcardPage() {
   const [showAiModal, setShowAiModal] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiSubjectId, setAiSubjectId] = useState("");
+  const [aiFile, setAiFile] = useState(null);
   const [newFlashcard, setNewFlashcard] = useState({
     subject_id: "",
     question: "",
     answer: "",
+    student_ids: [],
   });
+  const [students, setStudents] = useState([]);
+  const [step, setStep] = useState(1);
 
   useEffect(() => {
     fetchFlashcards();
     if (user?.role === "teacher") {
       fetchSubjects();
+      fetchStudents();
     }
   }, []);
 
@@ -56,7 +63,7 @@ export default function FlashcardPage() {
 
   const fetchSubjects = async () => {
     try {
-      const res = await api.getSubjects();
+      const res = await api.getTeacherSubjects();
       setSubjects(res);
       if (res.length > 0 && !editingCard) {
         setNewFlashcard((prev) => ({ ...prev, subject_id: String(res[0].id) }));
@@ -66,8 +73,28 @@ export default function FlashcardPage() {
     }
   };
 
+  const fetchStudents = async () => {
+    try {
+      const res = await api.getStudents();
+      setStudents(res);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleCreateFlashcard = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
+    
+    // Validate Step 1
+    if (step === 1 && !editingCard) {
+      if (!newFlashcard.question || !newFlashcard.answer || !newFlashcard.subject_id) {
+        alert("Please fill in all fields");
+        return;
+      }
+      setStep(2);
+      return;
+    }
+
     try {
       if (editingCard) {
         await api.updateFlashcard(editingCard.id, newFlashcard);
@@ -76,27 +103,35 @@ export default function FlashcardPage() {
       }
       setShowAddModal(false);
       setEditingCard(null);
+      setStep(1);
       setNewFlashcard({
         subject_id: subjects[0]?.id ? String(subjects[0].id) : "",
         question: "",
         answer: "",
+        student_ids: [],
       });
       fetchFlashcards();
     } catch (err) {
       console.error(err);
+      alert("Failed to save flashcard");
     }
   };
 
   const handleAiGenerate = async (e) => {
     e.preventDefault();
+    if (!aiFile) return alert("Please select a file to upload.");
+    if (!aiSubjectId && !subjects[0]?.id) return alert("Please select a subject.");
+
     setIsGenerating(true);
     try {
-      await api.generateAIContent({
-        file_url: "mock_uploaded_file.pdf",
-        subject_id: aiSubjectId || (subjects[0]?.id ? String(subjects[0].id) : ""),
-        type: "flashcard"
-      });
+      const formData = new FormData();
+      formData.append("document", aiFile);
+      formData.append("subject_id", aiSubjectId || String(subjects[0].id));
+      formData.append("type", "flashcard");
+
+      await api.generateAIContent(formData);
       setShowAiModal(false);
+      setAiFile(null);
       fetchFlashcards();
     } catch (err) {
       console.error(err);
@@ -125,12 +160,17 @@ export default function FlashcardPage() {
   };
 
   const openEditModal = (card) => {
+    const related = flashcards.filter(f => f.question === card.question && f.subject_id === card.subject_id);
+    const student_ids = related.map(f => f.student_id).filter(Boolean);
+
     setEditingCard(card);
     setNewFlashcard({
       subject_id: String(card.subject_id),
       question: card.question,
       answer: card.answer,
+      student_ids: student_ids,
     });
+    setStep(1);
     setShowAddModal(true);
   };
 
@@ -150,6 +190,48 @@ export default function FlashcardPage() {
     }, 150);
   };
 
+  const filteredStudents = newFlashcard.subject_id 
+    ? students.filter(s => {
+        const sub = subjects.find(sub => String(sub.id) === String(newFlashcard.subject_id));
+        return sub ? (s.class === sub.class && s.semester === sub.semester) : true;
+      })
+    : [];
+
+  const toggleStudent = (id) => {
+    setNewFlashcard((prev) => ({
+      ...prev,
+      student_ids: prev.student_ids.includes(id)
+        ? prev.student_ids.filter((sid) => sid !== id)
+        : [...prev.student_ids, id],
+    }));
+  };
+
+  const selectAll = () => {
+    setNewFlashcard((prev) => ({
+      ...prev,
+      student_ids: filteredStudents.map((s) => s.id),
+    }));
+  };
+
+  const teacherGrouped = user?.role === "teacher" 
+    ? flashcards.reduce((acc, curr) => {
+        const existing = acc.find((a) => a.question === curr.question && a.subject_id === curr.subject_id);
+        if (existing) {
+          if (curr.student_id) {
+            existing.student_names = [...(existing.student_names || []), curr.student_name].filter(Boolean);
+            existing.student_ids = [...(existing.student_ids || []), curr.student_id].filter(Boolean);
+          }
+        } else {
+          acc.push({
+            ...curr,
+            student_names: curr.student_id ? [curr.student_name] : [],
+            student_ids: curr.student_id ? [curr.student_id] : [],
+          });
+        }
+        return acc;
+      }, [])
+    : flashcards;
+
   if (loading)
     return (
       <div className="flex items-center justify-center h-64">
@@ -167,10 +249,10 @@ export default function FlashcardPage() {
             <div>
               <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
                 <Lightbulb className="text-yellow-500" />
-                Flashcard Manager
+                Topic Manager
               </h1>
               <p className="text-slate-500">
-                Manage flashcards you have created for active recall.
+                Manage quick topic summaries for your students.
               </p>
             </div>
             <div className="flex gap-4">
@@ -195,56 +277,91 @@ export default function FlashcardPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {flashcards.length === 0 ? (
-              <div className="col-span-full py-20 text-center bg-white rounded-[2.5rem] border border-dashed border-slate-200">
-                <BookOpen className="mx-auto text-slate-300 mb-4" size={48} />
-                <p className="text-slate-500">
-                  You haven't created any flashcards yet.
-                </p>
-              </div>
-            ) : (
-              flashcards.map((card) => (
-                <div
-                  key={card.id}
-                  className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-bold uppercase tracking-wider">
+            {teacherGrouped.length === 0 ? (
+            <div className="col-span-full py-20 text-center bg-white rounded-[2.5rem] border border-dashed border-slate-200">
+              <BrainCircuit className="mx-auto text-slate-300 mb-4" size={48} />
+              <p className="text-slate-500">No flashcards available yet.</p>
+            </div>
+          ) : (
+            teacherGrouped.map((card) => (
+              <motion.div
+                key={card.id}
+                whileHover={{ y: -5 }}
+                className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition-all group"
+              >
+                <div className="flex items-start justify-between mb-6">
+                  <div className="p-4 bg-orange-50 text-orange-600 rounded-2xl group-hover:scale-110 transition-transform">
+                    <Lightbulb size={32} />
+                  </div>
+                  <div className="text-right">
+                    <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider block mb-1">
                       {card.subject_name}
                     </span>
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                       {card.class} • Sem {card.semester}
                     </span>
                   </div>
-                  <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase mb-1">
-                      Question
-                    </p>
-                    <p className="font-bold text-slate-900">{card.question}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase mb-1">
-                      Answer
-                    </p>
-                    <p className="text-slate-600 text-sm">{card.answer}</p>
-                  </div>
-                  <div className="pt-4 flex items-center gap-2">
-                    <button
-                      onClick={() => openEditModal(card)}
-                      className="flex-1 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-200 transition-all"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDeleteClick(card)}
-                      className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
                 </div>
-              ))
-            )}
+                <h3 className="text-xl font-bold text-slate-900 mb-6 line-clamp-2">
+                  {card.question}
+                </h3>
+
+                {user?.role === "teacher" && (
+                  <div className="mb-6">
+                    <div className="flex items-center gap-2 text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">
+                      <Users size={14} />
+                      <span>{card.student_ids?.length > 0 ? `${card.student_ids.length} Students` : "All Students"}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {card.student_names?.slice(0, 3).map((name, i) => (
+                        <span key={i} className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">
+                          {name}
+                        </span>
+                      ))}
+                      {card.student_names?.length > 3 && (
+                        <span className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">
+                          +{card.student_names.length - 3}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2">
+                  {user?.role === "student" && (
+                    <button
+                      onClick={() => {
+                        const idx = flashcards.findIndex(
+                          (c) => c.id === card.id,
+                        );
+                        setCurrentIndex(idx);
+                        setIsFlipped(false);
+                      }}
+                      className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
+                    >
+                      Study Now
+                    </button>
+                  )}
+                  {user?.role === "teacher" && (
+                    <>
+                      <button
+                        onClick={() => openEditModal(card)}
+                        className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteClick(card)}
+                        className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                      >
+                        <Trash2 size={20} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </motion.div>
+            ))
+          )}
           </div>
         </div>
       ) : flashcards.length === 0 ? (
@@ -258,8 +375,8 @@ export default function FlashcardPage() {
         <div className="max-w-2xl mx-auto py-12 space-y-12">
           <div className="text-center">
             <h1 className="text-3xl font-black text-slate-900 flex items-center justify-center gap-3 mb-2">
-              <Lightbulb className="text-yellow-500" />
-              Active Recall Flashcards
+              <BookOpen className="text-blue-500" />
+              Topic Summaries
             </h1>
             <p className="text-slate-500">
               Card {currentIndex + 1} of {flashcards.length} •{" "}
@@ -267,66 +384,51 @@ export default function FlashcardPage() {
             </p>
           </div>
 
-          <div className="relative h-96 perspective-1000">
-            <motion.div
-              animate={{ rotateY: isFlipped ? 180 : 0 }}
-              transition={{
-                duration: 0.6,
-                type: "spring",
-                stiffness: 260,
-                damping: 20,
-              }}
-              onClick={() => setIsFlipped(!isFlipped)}
-              className="w-full h-full relative preserve-3d cursor-pointer"
-            >
-              {/* Front */}
-              <div className="absolute inset-0 backface-hidden bg-white rounded-[3rem] border-2 border-slate-100 shadow-2xl p-12 flex flex-col items-center justify-center text-center">
-                <span className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full mb-6 uppercase tracking-widest">
-                  Question
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            key={currentCard.id}
+            className="w-full bg-gradient-to-br from-white to-slate-50 rounded-[3rem] border border-white/60 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05)] p-12 ring-1 ring-slate-900/5 transition-all duration-300 relative overflow-hidden group"
+          >
+            <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl -mr-20 -mt-20 group-hover:bg-blue-500/10 transition-colors duration-700"></div>
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl -ml-20 -mb-20 group-hover:bg-purple-500/10 transition-colors duration-700"></div>
+            
+            <div className="relative z-10 flex flex-col h-full">
+              <div className="mb-8">
+                <span className="inline-block text-xs font-black text-blue-600 bg-blue-50/80 backdrop-blur-md px-4 py-1.5 rounded-full mb-4 uppercase tracking-[0.2em] border border-blue-100/50 shadow-sm">
+                  Topic
                 </span>
-                <h2 className="text-2xl font-bold text-slate-900 leading-relaxed">
+                <h2 className="text-3xl md:text-4xl font-black text-slate-800 leading-tight">
                   {currentCard.question}
                 </h2>
-                <div className="mt-12 flex items-center gap-2 text-slate-400 font-medium">
-                  <RotateCcw size={16} />
-                  Click to flip
-                </div>
               </div>
-
-              {/* Back */}
-              <div className="absolute inset-0 backface-hidden bg-slate-900 rounded-[3rem] border-2 border-slate-800 shadow-2xl p-12 flex flex-col items-center justify-center text-center rotate-y-180">
-                <span className="text-xs font-bold text-emerald-400 bg-emerald-400/10 px-3 py-1 rounded-full mb-6 uppercase tracking-widest">
-                  Answer
-                </span>
-                <h2 className="text-2xl font-bold text-white leading-relaxed">
+              
+              <div className="bg-slate-100/50 backdrop-blur-sm p-6 lg:p-8 rounded-[2.5rem] border border-white/80 shadow-inner">
+                <div className="mb-3">
+                  <span className="inline-flex text-xs font-black text-emerald-600 bg-emerald-100/80 backdrop-blur-md px-3 py-1 rounded-full uppercase tracking-[0.2em] border border-emerald-200/50 shadow-sm items-center gap-2">
+                    <Sparkles size={14} /> Summary
+                  </span>
+                </div>
+                <p className="text-lg text-slate-700 leading-relaxed font-medium">
                   {currentCard.answer}
-                </h2>
-                <div className="mt-12 flex items-center gap-2 text-white/40 font-medium">
-                  <Sparkles size={16} />
-                  Got it!
-                </div>
+                </p>
               </div>
-            </motion.div>
-          </div>
+            </div>
+          </motion.div>
 
-          <div className="flex items-center justify-center gap-6">
+          <div className="flex items-center justify-center gap-6 pt-4">
             <button
               onClick={prevCard}
-              className="p-4 bg-white border border-slate-200 text-slate-600 rounded-2xl hover:bg-slate-50 transition-all shadow-lg"
+              className="p-5 bg-white border border-slate-200 text-slate-600 rounded-2xl hover:bg-slate-50 hover:text-blue-600 hover:-translate-x-1 transition-all shadow-lg"
             >
               <ChevronLeft size={24} />
             </button>
-            <div className="flex flex-col items-center gap-4">
-              <button
-                onClick={() => setIsFlipped(!isFlipped)}
-                className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all shadow-xl"
-              >
-                Flip Card
-              </button>
+            <div className="text-sm font-bold text-slate-400 tracking-widest uppercase">
+              Navigate
             </div>
             <button
               onClick={nextCard}
-              className="p-4 bg-white border border-slate-200 text-slate-600 rounded-2xl hover:bg-slate-50 transition-all shadow-lg"
+              className="p-5 bg-white border border-slate-200 text-slate-600 rounded-2xl hover:bg-slate-50 hover:text-blue-600 hover:translate-x-1 transition-all shadow-lg"
             >
               <ChevronRight size={24} />
             </button>
@@ -350,87 +452,154 @@ export default function FlashcardPage() {
                     {editingCard ? "Edit Flashcard" : "Add Flashcard"}
                   </h2>
                   <p className="text-slate-500">
-                    {editingCard
-                      ? "Update your active recall card"
-                      : "Create a new active recall card"}
+                    {step === 1 
+                      ? (editingCard ? "Update your flashcard" : "Create a new active recall card")
+                      : "Assign this flashcard to target students"}
                   </p>
                 </div>
                 <button
                   onClick={() => {
                     setShowAddModal(false);
                     setEditingCard(null);
+                    setStep(1);
                   }}
                   className="p-2 hover:bg-slate-100 rounded-full transition-colors"
                 >
                   <X size={24} />
                 </button>
               </div>
-
               <form onSubmit={handleCreateFlashcard} className="space-y-6">
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
-                    Subject (Class & Semester)
-                  </label>
-                  <select
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                    value={newFlashcard.subject_id}
-                    onChange={(e) =>
-                      setNewFlashcard({
-                        ...newFlashcard,
-                        subject_id: e.target.value,
-                      })
-                    }
-                  >
-                    {subjects.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({s.class} • Sem {s.semester})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
-                    Question
-                  </label>
-                  <textarea
-                    required
-                    rows={3}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none"
-                    value={newFlashcard.question}
-                    onChange={(e) =>
-                      setNewFlashcard({
-                        ...newFlashcard,
-                        question: e.target.value,
-                      })
-                    }
-                    placeholder="Enter the question..."
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
-                    Answer
-                  </label>
-                  <textarea
-                    required
-                    rows={3}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none"
-                    value={newFlashcard.answer}
-                    onChange={(e) =>
-                      setNewFlashcard({
-                        ...newFlashcard,
-                        answer: e.target.value,
-                      })
-                    }
-                    placeholder="Enter the answer..."
-                  />
-                </div>
+                {step === 1 ? (
+                  <>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2">
+                        Subject
+                      </label>
+                      <select
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500 transition-all"
+                        value={newFlashcard.subject_id}
+                        onChange={(e) =>
+                          setNewFlashcard({
+                            ...newFlashcard,
+                            subject_id: e.target.value,
+                          })
+                        }
+                      >
+                        {subjects.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} ({s.class})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2">
+                        Question / Front
+                      </label>
+                      <textarea
+                        required
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500 transition-all h-32 resize-none"
+                        value={newFlashcard.question}
+                        onChange={(e) =>
+                          setNewFlashcard({
+                            ...newFlashcard,
+                            question: e.target.value,
+                          })
+                        }
+                        placeholder="e.g. What is polymorphism in OOP?"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2">
+                        Answer / Back
+                      </label>
+                      <textarea
+                        required
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500 transition-all h-32 resize-none"
+                        value={newFlashcard.answer}
+                        onChange={(e) =>
+                          setNewFlashcard({
+                            ...newFlashcard,
+                            answer: e.target.value,
+                          })
+                        }
+                        placeholder="Enter the correct answer here..."
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-bold text-slate-900">Select Students</h3>
+                      <button
+                        type="button"
+                        onClick={selectAll}
+                        className="text-xs font-bold text-blue-600 hover:underline"
+                      >
+                        Select All
+                      </button>
+                    </div>
+                    {filteredStudents.length === 0 ? (
+                      <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                         <Users className="mx-auto text-slate-300 mb-2" />
+                         <p className="text-sm text-slate-500">No students found for this subject's class/semester.</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-3 max-h-96 overflow-y-auto pr-2">
+                        {filteredStudents.map((student) => (
+                          <label
+                            key={student.id}
+                            className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer transition-all border ${
+                              newFlashcard.student_ids.includes(student.id)
+                                ? "bg-orange-50 border-orange-200 text-orange-700"
+                                : "bg-white border-slate-100 hover:border-slate-200"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              className="hidden"
+                              checked={newFlashcard.student_ids.includes(student.id)}
+                              onChange={() => toggleStudent(student.id)}
+                            />
+                            <div
+                              className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${
+                                newFlashcard.student_ids.includes(student.id)
+                                  ? "bg-orange-600 border-orange-600"
+                                  : "border-slate-300"
+                              }`}
+                            >
+                              {newFlashcard.student_ids.includes(student.id) && (
+                                <CheckSquare size={14} className="text-white" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold truncate">{student.name}</p>
+                              <p className="text-[10px] opacity-70 truncate">@{student.username}</p>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
-                <button
-                  type="submit"
-                  className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
-                >
-                  {editingCard ? "Update Flashcard" : "Save Flashcard"}
-                </button>
+                <div className="flex gap-4">
+                  {step === 2 && (
+                    <button
+                      type="button"
+                      onClick={() => setStep(1)}
+                      className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-all"
+                    >
+                      Back
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    className="flex-[2] py-4 bg-orange-600 text-white rounded-2xl font-bold hover:bg-orange-700 transition-all shadow-lg shadow-orange-100"
+                  >
+                    {step === 1 ? "Next: Select Students" : (editingCard ? "Update Flashcard" : "Create Flashcard")}
+                  </button>
+                </div>
               </form>
             </motion.div>
           </div>
@@ -449,7 +618,7 @@ export default function FlashcardPage() {
               {isGenerating && (
                 <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
                    <Sparkles className="text-purple-600 animate-pulse mb-4 w-12 h-12" />
-                   <h3 className="text-lg font-bold text-slate-800">Sarvam AI is analyzing your PDF...</h3>
+                   <h3 className="text-lg font-bold text-slate-800">AI is analyzing your PDF...</h3>
                    <p className="text-sm text-slate-500 mt-2">Generating flashcards</p>
                 </div>
               )}
@@ -473,11 +642,19 @@ export default function FlashcardPage() {
                    <label className="block text-sm font-bold text-slate-700 mb-2">
                      Study Material (PDF/DOCX)
                    </label>
-                   <div className="w-full border-2 border-dashed border-slate-300 rounded-2xl p-8 text-center hover:bg-slate-50 hover:border-purple-400 transition-colors cursor-pointer">
+                   <label className="w-full flex-col border-2 border-dashed border-slate-300 rounded-2xl p-8 flex items-center justify-center hover:bg-slate-50 hover:border-purple-400 transition-colors cursor-pointer">
                       <BookOpen className="mx-auto text-slate-400 mb-3" size={32} />
-                      <p className="text-sm font-bold text-slate-700">Click to upload or drag & drop</p>
+                      <p className="text-sm font-bold text-slate-700">
+                        {aiFile ? aiFile.name : "Click to upload or drag & drop"}
+                      </p>
                       <p className="text-xs text-slate-500 mt-1">Maximum file size 10MB</p>
-                   </div>
+                      <input 
+                        type="file" 
+                        accept=".pdf,.txt,.docx" 
+                        className="hidden" 
+                        onChange={(e) => setAiFile(e.target.files[0])} 
+                      />
+                   </label>
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-2">Target Subject</label>
@@ -488,7 +665,7 @@ export default function FlashcardPage() {
                   >
                     {subjects.map((s) => (
                       <option key={s.id} value={s.id}>
-                        {s.name} ({s.class} • Sem {s.semester})
+                        {s.name} ({s.class} • Sem {s.semester} • Year {s.year || Math.ceil(s.semester / 2)})
                       </option>
                     ))}
                   </select>

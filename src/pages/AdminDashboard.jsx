@@ -61,10 +61,14 @@ export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
     name: "",
     semester: 1,
     class: "CSE",
+    year: 1,
   });
   const [broadcastMessage, setBroadcastMessage] = useState("");
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [latestNotification, setLatestNotification] = useState(null);
+  const [showSubjectModal, setShowSubjectModal] = useState(false);
+  const [currentTeacher, setCurrentTeacher] = useState(null);
+  const [assignedSubjects, setAssignedSubjects] = useState([]);
 
   const classes = [
     "CSE",
@@ -188,6 +192,31 @@ export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
       setStudents(res);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleOpenSubjectModal = async (teacher) => {
+    try {
+      setCurrentTeacher(teacher);
+      const res = await api.getTeacherAssignedSubjects(teacher.id);
+      setAssignedSubjects(res.map((s) => s.id));
+      setShowSubjectModal(true);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to load assigned subjects");
+    }
+  };
+
+  const handleSaveAssignedSubjects = async () => {
+    try {
+      await api.assignSubjectToTeacher(currentTeacher.id, {
+        subject_ids: assignedSubjects,
+      });
+      setShowSubjectModal(false);
+      alert("Subjects assigned successfully!");
+    } catch (err) {
+      console.error(err);
+      alert(err.message);
     }
   };
 
@@ -428,6 +457,9 @@ export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
                   Semester
                 </th>
                 <th className="px-6 py-4 text-sm font-bold text-slate-600">
+                  Year
+                </th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-600">
                   Actions
                 </th>
               </tr>
@@ -448,6 +480,9 @@ export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
                   </td>
                   <td className="px-6 py-4 text-slate-600">
                     Sem {subject.semester}
+                  </td>
+                  <td className="px-6 py-4 text-slate-600">
+                    Year {subject.year || Math.ceil(subject.semester / 2)}
                   </td>
                   <td className="px-6 py-4">
                     <button
@@ -522,6 +557,13 @@ export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
                         className="p-2 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
                       >
                         <Search size={20} />
+                      </button>
+                      <button
+                        onClick={() => handleOpenSubjectModal(teacher)}
+                        className="p-2 text-emerald-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
+                        title="Assign Subjects"
+                      >
+                        <BookOpen size={20} />
                       </button>
                       <button
                         onClick={() => confirmDelete(teacher)}
@@ -699,6 +741,27 @@ export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
                         {semesters.map((s) => (
                           <option key={s} value={s}>
                             Sem {s}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Year
+                      </label>
+                      <select
+                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                        value={newSubject.year}
+                        onChange={(e) =>
+                          setNewSubject({
+                            ...newSubject,
+                            year: parseInt(e.target.value),
+                          })
+                        }
+                      >
+                        {[1, 2, 3, 4].map((y) => (
+                          <option key={y} value={y}>
+                            Year {y}
                           </option>
                         ))}
                       </select>
@@ -917,6 +980,98 @@ export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
                     : "Add Subject"}
               </button>
             </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Subject Assignment Modal */}
+      {showSubjectModal && currentTeacher && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white w-full max-w-2xl rounded-[2.5rem] p-8 shadow-2xl max-h-[90vh] flex flex-col"
+          >
+            <div className="flex items-center justify-between mb-6 shrink-0">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">
+                  Assign Subjects
+                </h2>
+                <p className="text-slate-500 text-sm">
+                  Assigning subjects to <strong>{currentTeacher.name}</strong>
+                </p>
+              </div>
+              <button
+                onClick={() => setShowSubjectModal(false)}
+                className="p-2 hover:bg-slate-100 rounded-full"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+              {semesters.map((sem) => (
+                <div key={sem} className="space-y-2">
+                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest px-2">
+                    Semester {sem}
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {subjects
+                      .filter((s) => s.semester === sem)
+                      .map((subject) => (
+                        <label
+                          key={subject.id}
+                          className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                            assignedSubjects.includes(subject.id)
+                              ? "bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm"
+                              : "bg-slate-50 border-transparent text-slate-600 hover:bg-slate-100"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="hidden"
+                            checked={assignedSubjects.includes(subject.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setAssignedSubjects([
+                                  ...assignedSubjects,
+                                  subject.id,
+                                ]);
+                              } else {
+                                setAssignedSubjects(
+                                  assignedSubjects.filter(
+                                    (id) => id !== subject.id
+                                  )
+                                );
+                              }
+                            }}
+                          />
+                          <div className="flex-1">
+                            <p className="font-bold text-sm">{subject.name}</p>
+                            <p className="text-[10px] uppercase font-bold opacity-60">
+                              {subject.class} • Sem {subject.semester} • Year {subject.year || Math.ceil(subject.semester / 2)}
+                            </p>
+                          </div>
+                          {assignedSubjects.includes(subject.id) && (
+                            <div className="w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center text-white">
+                              <CheckCircle size={12} strokeWidth={4} />
+                            </div>
+                          )}
+                        </label>
+                      ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-8 pt-6 border-t border-slate-100 shrink-0">
+              <button
+                onClick={handleSaveAssignedSubjects}
+                className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-lg hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-200"
+              >
+                Save Assignments
+              </button>
+            </div>
           </motion.div>
         </div>
       )}
