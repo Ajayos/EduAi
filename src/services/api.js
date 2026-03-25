@@ -4,11 +4,17 @@ const API_URL = "/api";
 
 async function request(endpoint, options) {
   const token = useAuthStore.getState().token;
-  const headers = {
-    "Content-Type": "application/json",
+  const isFormData = options?.body;
+
+  var headers = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options?.headers || {}),
+    ...(!isFormData ? {} : { "Content-Type": "application/json" }),
   };
+
+  if (!isFormData) {
+    headers["Content-Type"] = "application/json";
+  }
 
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
@@ -39,6 +45,7 @@ export const api = {
     request("/auth/login", {
       method: "POST",
       body: JSON.stringify(credentials),
+
     }),
   registerTeacher: (data) =>
     request("/auth/register-teacher", {
@@ -55,8 +62,7 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  deleteTeacher: (id) =>
-    request(`/admin/teachers/${id}`, { method: "DELETE" }),
+  deleteTeacher: (id) => request(`/admin/teachers/${id}`, { method: "DELETE" }),
 
   getAdminStudents: () => request("/admin/students"),
   getAdminStudentDetails: (id) => request(`/admin/students/${id}`),
@@ -65,8 +71,15 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  deleteStudent: (id) =>
-    request(`/admin/students/${id}`, { method: "DELETE" }),
+  deleteStudent: (id) => request(`/admin/students/${id}`, { method: "DELETE" }),
+  createSubject: (data) =>
+    request("/admin/subjects", { method: "POST", body: JSON.stringify(data) }),
+  deleteSubject: (id) => request(`/admin/subjects/${id}`, { method: "DELETE" }),
+  uploadFile: (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return request("/upload", { method: "POST", body: formData });
+  },
 
   // Teacher
   getStudents: () => request("/teacher/students"),
@@ -75,10 +88,18 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  getTeacherSubjects: () => request("/teacher/subjects"),
   addMarks: (data) =>
     request("/marks", { method: "POST", body: JSON.stringify(data) }),
   addAttendance: (data) =>
     request("/attendance", { method: "POST", body: JSON.stringify(data) }),
+  updateAttendance: (id, data) =>
+    request(`/attendance/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  checkInAttendance: (data) =>
+    request("/attendance/check-in", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   getAssignments: () => request("/teacher/assignments"),
   createAssignment: (data) =>
     request("/teacher/assignments", {
@@ -90,6 +111,8 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  deleteAssignment: (id) =>
+    request(`/teacher/assignments/${id}`, { method: "DELETE" }),
   getTimetable: (className, semester) => {
     const params = new URLSearchParams();
     if (className) params.append("class", className || "");
@@ -98,13 +121,15 @@ export const api = {
   },
   createTimetable: (data) =>
     request("/timetable", { method: "POST", body: JSON.stringify(data) }),
-  deleteTimetable: (id) =>
-    request(`/timetable/${id}`, { method: "DELETE" }),
+  deleteTimetable: (id) => request(`/timetable/${id}`, { method: "DELETE" }),
 
   // Quizzes
   getQuizzes: () => request("/quizzes"),
   createQuiz: (data) =>
     request("/quizzes", { method: "POST", body: JSON.stringify(data) }),
+  updateQuiz: (id, data) =>
+    request(`/quizzes/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteQuiz: (id) => request(`/quizzes/${id}`, { method: "DELETE" }),
   submitQuiz: (id, data) =>
     request(`/quizzes/${id}/submit`, {
       method: "POST",
@@ -113,13 +138,15 @@ export const api = {
 
   // Tasks
   getTasks: () => request("/tasks"),
-  completeTask: (id) =>
-    request(`/tasks/${id}/complete`, { method: "POST" }),
+  completeTask: (id) => request(`/tasks/${id}/complete`, { method: "POST" }),
 
   // Flashcards
   getFlashcards: () => request("/flashcards"),
   createFlashcard: (data) =>
     request("/flashcards", { method: "POST", body: JSON.stringify(data) }),
+  updateFlashcard: (id, data) =>
+    request(`/flashcards/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteFlashcard: (id) => request(`/flashcards/${id}`, { method: "DELETE" }),
 
   // Achievements
   getAchievements: () => request("/achievements"),
@@ -149,4 +176,18 @@ export const api = {
     }),
   getStudentAnalytics: (id) => request(`/analytics/student/${id}`),
   getStudentAssignments: () => request("/student/assignments"),
+  getAssignmentAnalytics: () => request("/teacher/analytics/assignments"),
+  getQuizAnalytics: () => request("/teacher/analytics/quizzes"),
+  updateAssignmentPriority: (id, data) =>
+    request(`/student/assignments/${id}/priority`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  updateTaskPriority: (id, data) =>
+    request(`/student/tasks/${id}/priority`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  completeAssignment: (id) =>
+    request(`/student/assignments/${id}/complete`, { method: "POST" }),
 };

@@ -14,6 +14,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import ConfirmationModal from "../components/ConfirmationModal";
 
 export default function FlashcardPage() {
   const { user } = useAuthStore();
@@ -23,6 +24,9 @@ export default function FlashcardPage() {
   const [isFlipped, setIsFlipped] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingCard, setEditingCard] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState(null);
   const [newFlashcard, setNewFlashcard] = useState({
     subject_id: "",
     question: "",
@@ -51,11 +55,8 @@ export default function FlashcardPage() {
     try {
       const res = await api.getSubjects();
       setSubjects(res);
-      if (res.length > 0) {
-        setNewFlashcard((prev) => ({
-          ...prev,
-          subject_id: res[0].id.toString(),
-        }));
+      if (res.length > 0 && !editingCard) {
+        setNewFlashcard((prev) => ({ ...prev, subject_id: String(res[0].id) }));
       }
     } catch (err) {
       console.error(err);
@@ -65,10 +66,15 @@ export default function FlashcardPage() {
   const handleCreateFlashcard = async (e) => {
     e.preventDefault();
     try {
-      await api.createFlashcard(newFlashcard);
+      if (editingCard) {
+        await api.updateFlashcard(editingCard.id, newFlashcard);
+      } else {
+        await api.createFlashcard(newFlashcard);
+      }
       setShowAddModal(false);
+      setEditingCard(null);
       setNewFlashcard({
-        subject_id: subjects[0]?.id.toString() || "",
+        subject_id: subjects[0]?.id ? String(subjects[0].id) : "",
         question: "",
         answer: "",
       });
@@ -76,6 +82,34 @@ export default function FlashcardPage() {
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const handleDeleteFlashcard = async () => {
+    if (!itemToDelete) return;
+    try {
+      await api.deleteFlashcard(itemToDelete.id);
+      setShowDeleteConfirm(false);
+      setItemToDelete(null);
+      fetchFlashcards();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete flashcard");
+    }
+  };
+
+  const handleDeleteClick = (card) => {
+    setItemToDelete(card);
+    setShowDeleteConfirm(true);
+  };
+
+  const openEditModal = (card) => {
+    setEditingCard(card);
+    setNewFlashcard({
+      subject_id: String(card.subject_id),
+      question: card.question,
+      answer: card.answer,
+    });
+    setShowAddModal(true);
   };
 
   const nextCard = () => {
@@ -101,264 +135,283 @@ export default function FlashcardPage() {
       </div>
     );
 
-  if (user?.role === "teacher") {
-    return (
-      <div className="space-y-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
-              <Lightbulb className="text-yellow-500" />
-              Flashcard Manager
-            </h1>
-            <p className="text-slate-500">
-              Manage flashcards you have created for active recall.
-            </p>
-          </div>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
-          >
-            <Plus size={20} />
-            Add Flashcard
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {flashcards.length === 0 ? (
-            <div className="col-span-full py-20 text-center bg-white rounded-[2.5rem] border border-dashed border-slate-200">
-              <BookOpen className="mx-auto text-slate-300 mb-4" size={48} />
-              <p className="text-slate-500">
-                You haven't created any flashcards yet.
-              </p>
-            </div>
-          ) : (
-            flashcards.map((card) => (
-              <div
-                key={card.id}
-                className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-bold uppercase tracking-wider">
-                    {card.subject_name}
-                  </span>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    {card.class} • Sem {card.semester}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-slate-400 uppercase mb-1">
-                    Question
-                  </p>
-                  <p className="font-bold text-slate-900">{card.question}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-slate-400 uppercase mb-1">
-                    Answer
-                  </p>
-                  <p className="text-slate-600 text-sm">{card.answer}</p>
-                </div>
-                <div className="pt-4 flex items-center gap-2">
-                  <button className="flex-1 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-200 transition-all">
-                    Edit
-                  </button>
-                  <button className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-all">
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* Add Flashcard Modal */}
-        <AnimatePresence>
-          {showAddModal && (
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl"
-              >
-                <div className="flex items-center justify-between mb-8">
-                  <div>
-                    <h2 className="text-2xl font-bold text-slate-900">
-                      Add Flashcard
-                    </h2>
-                    <p className="text-slate-500">
-                      Create a new active recall card
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setShowAddModal(false)}
-                    className="p-2 hover:bg-slate-100 rounded-full transition-colors"
-                  >
-                    <X size={24} />
-                  </button>
-                </div>
-
-                <form onSubmit={handleCreateFlashcard} className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">
-                      Subject (Class & Semester)
-                    </label>
-                    <select
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                      value={newFlashcard.subject_id}
-                      onChange={(e) =>
-                        setNewFlashcard({
-                          ...newFlashcard,
-                          subject_id: e.target.value,
-                        })
-                      }
-                    >
-                      {subjects.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name} ({s.class} • Sem {s.semester})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">
-                      Question
-                    </label>
-                    <textarea
-                      required
-                      rows={3}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none"
-                      value={newFlashcard.question}
-                      onChange={(e) =>
-                        setNewFlashcard({
-                          ...newFlashcard,
-                          question: e.target.value,
-                        })
-                      }
-                      placeholder="Enter the question..."
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">
-                      Answer
-                    </label>
-                    <textarea
-                      required
-                      rows={3}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none"
-                      value={newFlashcard.answer}
-                      onChange={(e) =>
-                        setNewFlashcard({
-                          ...newFlashcard,
-                          answer: e.target.value,
-                        })
-                      }
-                      placeholder="Enter the answer..."
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
-                  >
-                    Save Flashcard
-                  </button>
-                </form>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
-      </div>
-    );
-  }
-
-  if (flashcards.length === 0) {
-    return (
-      <div className="py-20 text-center bg-white rounded-[2.5rem] border border-dashed border-slate-200">
-        <BookOpen className="mx-auto text-slate-300 mb-4" size={48} />
-        <p className="text-slate-500">
-          No flashcards available for your current semester yet.
-        </p>
-      </div>
-    );
-  }
-
   const currentCard = flashcards[currentIndex];
 
   return (
-    <div className="max-w-2xl mx-auto py-12 space-y-12">
-      <div className="text-center">
-        <h1 className="text-3xl font-black text-slate-900 flex items-center justify-center gap-3 mb-2">
-          <Lightbulb className="text-yellow-500" />
-          Active Recall Flashcards
-        </h1>
-        <p className="text-slate-500">
-          Card {currentIndex + 1} of {flashcards.length} •{" "}
-          {currentCard.subject_name}
-        </p>
-      </div>
-
-      <div className="relative h-96 perspective-1000">
-        <motion.div
-          animate={{ rotateY: isFlipped ? 180 : 0 }}
-          transition={{
-            duration: 0.6,
-            type: "spring",
-            stiffness: 260,
-            damping: 20,
-          }}
-          onClick={() => setIsFlipped(!isFlipped)}
-          className="w-full h-full relative preserve-3d cursor-pointer"
-        >
-          {/* Front */}
-          <div className="absolute inset-0 backface-hidden bg-white rounded-[3rem] border-2 border-slate-100 shadow-2xl p-12 flex flex-col items-center justify-center text-center">
-            <span className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full mb-6 uppercase tracking-widest">
-              Question
-            </span>
-            <h2 className="text-2xl font-bold text-slate-900 leading-relaxed">
-              {currentCard.question}
-            </h2>
-            <div className="mt-12 flex items-center gap-2 text-slate-400 font-medium">
-              <RotateCcw size={16} />
-              Click to flip
+    <div className="space-y-8">
+      {user?.role === "teacher" ? (
+        <div className="space-y-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+                <Lightbulb className="text-yellow-500" />
+                Flashcard Manager
+              </h1>
+              <p className="text-slate-500">
+                Manage flashcards you have created for active recall.
+              </p>
             </div>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
+            >
+              <Plus size={20} />
+              Add Flashcard
+            </button>
           </div>
 
-          {/* Back */}
-          <div className="absolute inset-0 backface-hidden bg-slate-900 rounded-[3rem] border-2 border-slate-800 shadow-2xl p-12 flex flex-col items-center justify-center text-center rotate-y-180">
-            <span className="text-xs font-bold text-emerald-400 bg-emerald-400/10 px-3 py-1 rounded-full mb-6 uppercase tracking-widest">
-              Answer
-            </span>
-            <h2 className="text-2xl font-bold text-white leading-relaxed">
-              {currentCard.answer}
-            </h2>
-            <div className="mt-12 flex items-center gap-2 text-white/40 font-medium">
-              <Sparkles size={16} />
-              Got it!
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {flashcards.length === 0 ? (
+              <div className="col-span-full py-20 text-center bg-white rounded-[2.5rem] border border-dashed border-slate-200">
+                <BookOpen className="mx-auto text-slate-300 mb-4" size={48} />
+                <p className="text-slate-500">
+                  You haven't created any flashcards yet.
+                </p>
+              </div>
+            ) : (
+              flashcards.map((card) => (
+                <div
+                  key={card.id}
+                  className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-bold uppercase tracking-wider">
+                      {card.subject_name}
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      {card.class} • Sem {card.semester}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase mb-1">
+                      Question
+                    </p>
+                    <p className="font-bold text-slate-900">{card.question}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase mb-1">
+                      Answer
+                    </p>
+                    <p className="text-slate-600 text-sm">{card.answer}</p>
+                  </div>
+                  <div className="pt-4 flex items-center gap-2">
+                    <button
+                      onClick={() => openEditModal(card)}
+                      className="flex-1 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-200 transition-all"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDeleteClick(card)}
+                      className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
-        </motion.div>
-      </div>
+        </div>
+      ) : flashcards.length === 0 ? (
+        <div className="py-20 text-center bg-white rounded-[2.5rem] border border-dashed border-slate-200">
+          <BookOpen className="mx-auto text-slate-300 mb-4" size={48} />
+          <p className="text-slate-500">
+            No flashcards available for your current semester yet.
+          </p>
+        </div>
+      ) : (
+        <div className="max-w-2xl mx-auto py-12 space-y-12">
+          <div className="text-center">
+            <h1 className="text-3xl font-black text-slate-900 flex items-center justify-center gap-3 mb-2">
+              <Lightbulb className="text-yellow-500" />
+              Active Recall Flashcards
+            </h1>
+            <p className="text-slate-500">
+              Card {currentIndex + 1} of {flashcards.length} •{" "}
+              {currentCard.subject_name}
+            </p>
+          </div>
 
-      <div className="flex items-center justify-center gap-6">
-        <button
-          onClick={prevCard}
-          className="p-4 bg-white border border-slate-200 text-slate-600 rounded-2xl hover:bg-slate-50 transition-all shadow-lg"
-        >
-          <ChevronLeft size={24} />
-        </button>
-        <button
-          onClick={() => setIsFlipped(!isFlipped)}
-          className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all shadow-xl"
-        >
-          Flip Card
-        </button>
-        <button
-          onClick={nextCard}
-          className="p-4 bg-white border border-slate-200 text-slate-600 rounded-2xl hover:bg-slate-50 transition-all shadow-lg"
-        >
-          <ChevronRight size={24} />
-        </button>
-      </div>
+          <div className="relative h-96 perspective-1000">
+            <motion.div
+              animate={{ rotateY: isFlipped ? 180 : 0 }}
+              transition={{
+                duration: 0.6,
+                type: "spring",
+                stiffness: 260,
+                damping: 20,
+              }}
+              onClick={() => setIsFlipped(!isFlipped)}
+              className="w-full h-full relative preserve-3d cursor-pointer"
+            >
+              {/* Front */}
+              <div className="absolute inset-0 backface-hidden bg-white rounded-[3rem] border-2 border-slate-100 shadow-2xl p-12 flex flex-col items-center justify-center text-center">
+                <span className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full mb-6 uppercase tracking-widest">
+                  Question
+                </span>
+                <h2 className="text-2xl font-bold text-slate-900 leading-relaxed">
+                  {currentCard.question}
+                </h2>
+                <div className="mt-12 flex items-center gap-2 text-slate-400 font-medium">
+                  <RotateCcw size={16} />
+                  Click to flip
+                </div>
+              </div>
+
+              {/* Back */}
+              <div className="absolute inset-0 backface-hidden bg-slate-900 rounded-[3rem] border-2 border-slate-800 shadow-2xl p-12 flex flex-col items-center justify-center text-center rotate-y-180">
+                <span className="text-xs font-bold text-emerald-400 bg-emerald-400/10 px-3 py-1 rounded-full mb-6 uppercase tracking-widest">
+                  Answer
+                </span>
+                <h2 className="text-2xl font-bold text-white leading-relaxed">
+                  {currentCard.answer}
+                </h2>
+                <div className="mt-12 flex items-center gap-2 text-white/40 font-medium">
+                  <Sparkles size={16} />
+                  Got it!
+                </div>
+              </div>
+            </motion.div>
+          </div>
+
+          <div className="flex items-center justify-center gap-6">
+            <button
+              onClick={prevCard}
+              className="p-4 bg-white border border-slate-200 text-slate-600 rounded-2xl hover:bg-slate-50 transition-all shadow-lg"
+            >
+              <ChevronLeft size={24} />
+            </button>
+            <div className="flex flex-col items-center gap-4">
+              <button
+                onClick={() => setIsFlipped(!isFlipped)}
+                className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all shadow-xl"
+              >
+                Flip Card
+              </button>
+            </div>
+            <button
+              onClick={nextCard}
+              className="p-4 bg-white border border-slate-200 text-slate-600 rounded-2xl hover:bg-slate-50 transition-all shadow-lg"
+            >
+              <ChevronRight size={24} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Add Flashcard Modal */}
+      <AnimatePresence>
+        {showAddModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-900">
+                    {editingCard ? "Edit Flashcard" : "Add Flashcard"}
+                  </h2>
+                  <p className="text-slate-500">
+                    {editingCard
+                      ? "Update your active recall card"
+                      : "Create a new active recall card"}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowAddModal(false);
+                    setEditingCard(null);
+                  }}
+                  className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateFlashcard} className="space-y-6">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                    Subject (Class & Semester)
+                  </label>
+                  <select
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                    value={newFlashcard.subject_id}
+                    onChange={(e) =>
+                      setNewFlashcard({
+                        ...newFlashcard,
+                        subject_id: e.target.value,
+                      })
+                    }
+                  >
+                    {subjects.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.class} • Sem {s.semester})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                    Question
+                  </label>
+                  <textarea
+                    required
+                    rows={3}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none"
+                    value={newFlashcard.question}
+                    onChange={(e) =>
+                      setNewFlashcard({
+                        ...newFlashcard,
+                        question: e.target.value,
+                      })
+                    }
+                    placeholder="Enter the question..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                    Answer
+                  </label>
+                  <textarea
+                    required
+                    rows={3}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none"
+                    value={newFlashcard.answer}
+                    onChange={(e) =>
+                      setNewFlashcard({
+                        ...newFlashcard,
+                        answer: e.target.value,
+                      })
+                    }
+                    placeholder="Enter the answer..."
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
+                >
+                  {editingCard ? "Update Flashcard" : "Save Flashcard"}
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <ConfirmationModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDeleteFlashcard}
+        title="Delete Flashcard"
+        message={`Are you sure you want to delete this flashcard? This action cannot be undone.`}
+        confirmText="Delete Flashcard"
+        type="danger"
+      />
     </div>
   );
 }

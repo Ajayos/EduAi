@@ -13,6 +13,7 @@ import {
   Zap,
   Trophy,
   Star,
+  Calendar,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -41,13 +42,33 @@ export default function PersonalizedLearning() {
   const handleCompleteTask = async (id) => {
     try {
       await api.completeTask(id);
-      const updatedTasks = await api.getTasks();
-      setTasks(updatedTasks);
-      // Refresh achievements too in case one was unlocked
-      const updatedAch = await api.getAchievements();
-      setAchievements(updatedAch);
+      fetchData();
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleUpdateTask = async (id, priority, dueDate) => {
+    try {
+      await api.updateTaskPriority(id, { priority, due_date: dueDate });
+      fetchData();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchData = () => {
+    if (user) {
+      Promise.all([
+        api.getTasks(),
+        api.getAchievements(),
+        api.getStudentAnalytics(user.id),
+      ]).then(([tasksRes, achRes, anaRes]) => {
+        setTasks(tasksRes);
+        setAchievements(achRes);
+        setAnalytics(anaRes);
+        setLoading(false);
+      });
     }
   };
 
@@ -170,55 +191,111 @@ export default function PersonalizedLearning() {
                 <motion.div
                   key={task.id}
                   whileHover={{ x: 5 }}
-                  className={`p-6 rounded-3xl border transition-all flex items-center justify-between gap-4 ${
+                  className={`p-6 rounded-3xl border transition-all flex flex-col gap-4 ${
                     task.is_completed
                       ? "bg-slate-50 border-slate-100 opacity-60"
                       : "bg-white border-slate-200 shadow-sm hover:border-blue-300"
                   }`}
                 >
-                  <div className="flex items-center gap-4">
-                    <div
-                      className={`p-3 rounded-2xl ${
-                        task.is_completed
-                          ? "bg-emerald-100 text-emerald-600"
-                          : "bg-blue-50 text-blue-600"
-                      }`}
-                    >
-                      {task.is_completed ? (
-                        <CheckCircle2 size={24} />
-                      ) : (
-                        <Zap size={24} />
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <div
+                        className={`p-3 rounded-2xl ${
+                          task.is_completed
+                            ? "bg-emerald-100 text-emerald-600"
+                            : "bg-blue-50 text-blue-600"
+                        }`}
+                      >
+                        {task.is_completed ? (
+                          <CheckCircle2 size={24} />
+                        ) : (
+                          <Zap size={24} />
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4
+                            className={`font-bold ${task.is_completed ? "text-slate-500 line-through" : "text-slate-900"}`}
+                          >
+                            {task.title}
+                          </h4>
+                          {task.priority > 0 && (
+                            <span className="bg-red-100 text-red-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
+                              High Priority
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-slate-500">
+                          {task.description}
+                        </p>
+                        {task.due_date && (
+                          <p className="text-xs font-bold text-orange-500 mt-1 flex items-center gap-1">
+                            <Calendar size={12} />
+                            Due: {new Date(task.due_date).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <p className="text-xs font-bold text-slate-400 uppercase">
+                          Reward
+                        </p>
+                        <p className="font-bold text-blue-600">
+                          +{task.points} pts
+                        </p>
+                      </div>
+                      {!task.is_completed && (
+                        <button
+                          onClick={() => handleCompleteTask(task.id)}
+                          className="p-3 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
+                        >
+                          <ChevronRight size={20} />
+                        </button>
                       )}
                     </div>
-                    <div>
-                      <h4
-                        className={`font-bold ${task.is_completed ? "text-slate-500 line-through" : "text-slate-900"}`}
-                      >
-                        {task.title}
-                      </h4>
-                      <p className="text-sm text-slate-500">
-                        {task.description}
-                      </p>
-                    </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className="text-xs font-bold text-slate-400 uppercase">
-                        Reward
-                      </p>
-                      <p className="font-bold text-blue-600">
-                        +{task.points} pts
-                      </p>
+
+                  {!task.is_completed && (
+                    <div className="flex items-center gap-4 pt-4 border-t border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-400 uppercase">
+                          Priority:
+                        </span>
+                        <select
+                          value={task.priority}
+                          onChange={(e) =>
+                            handleUpdateTask(
+                              task.id,
+                              parseInt(e.target.value),
+                              task.due_date,
+                            )
+                          }
+                          className="text-xs font-bold bg-slate-100 px-2 py-1 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value={0}>Normal</option>
+                          <option value={1}>High</option>
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-400 uppercase">
+                          Due Date:
+                        </span>
+                        <input
+                          type="date"
+                          value={task.due_date || ""}
+                          onChange={(e) =>
+                            handleUpdateTask(
+                              task.id,
+                              task.priority,
+                              e.target.value,
+                            )
+                          }
+                          className="text-xs font-bold bg-slate-100 px-2 py-1 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
                     </div>
-                    {!task.is_completed && (
-                      <button
-                        onClick={() => handleCompleteTask(task.id)}
-                        className="p-3 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
-                      >
-                        <ChevronRight size={20} />
-                      </button>
-                    )}
-                  </div>
+                  )}
                 </motion.div>
               ))
             )}

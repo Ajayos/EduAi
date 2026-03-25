@@ -34,15 +34,17 @@ import {
   ChevronRight,
   Sparkles,
   ShieldCheck,
+  Download,
+  Clock,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-export default function StudentDashboard({
-  setActiveTab,
-}) {
+export default function StudentDashboard({ setActiveTab }) {
   const { user } = useAuthStore();
   const [analytics, setAnalytics] = useState(null);
   const [assignments, setAssignments] = useState([]);
+  const [achievements, setAchievements] = useState([]);
+  const [timetable, setTimetable] = useState([]);
   const [selectedSubject, setSelectedSubject] = useState(null);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestData, setRequestData] = useState({
@@ -52,6 +54,7 @@ export default function StudentDashboard({
   });
   const [loading, setLoading] = useState(true);
   const [latestNotification, setLatestNotification] = useState(null);
+  const [activeSubTab, setActiveSubTab] = useState("Overview");
 
   useEffect(() => {
     fetchData();
@@ -72,13 +75,28 @@ export default function StudentDashboard({
 
   const fetchData = async () => {
     if (user) {
-      const [anaRes, assignRes] = await Promise.all([
-        api.getStudentAnalytics(user.id),
-        api.getStudentAssignments(),
-      ]);
+      const [anaRes, assignRes, timetableRes, achievementsRes] =
+        await Promise.all([
+          api.getStudentAnalytics(user.id),
+          api.getStudentAssignments(),
+          api.getTimetable(user.class, user.semester),
+          api.getAchievements(),
+        ]);
       setAnalytics(anaRes);
       setAssignments(assignRes);
+      setTimetable(timetableRes);
+      setAchievements(achievementsRes);
       setLoading(false);
+    }
+  };
+
+  const handleCheckIn = async (subjectId) => {
+    try {
+      await api.checkInAttendance({ subject_id: subjectId });
+      alert("Checked in successfully! You earned 5 points.");
+      fetchData();
+    } catch (err) {
+      alert(err.message);
     }
   };
 
@@ -114,6 +132,24 @@ export default function StudentDashboard({
     }
   };
 
+  const handleUpdateAssignment = async (id, priority, dueDate) => {
+    try {
+      await api.updateAssignmentPriority(id, { priority, due_date: dueDate });
+      fetchData();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleCompleteAssignment = async (id) => {
+    try {
+      await api.completeAssignment(id);
+      fetchData();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   if (loading) return <div>Loading dashboard...</div>;
 
   const radarData = analytics.marks.map((m) => ({
@@ -123,6 +159,16 @@ export default function StudentDashboard({
   }));
 
   const COLORS = ["#3b82f6", "#f97316", "#eab308", "#ec4899"];
+
+  const avgMarks =
+    analytics.marks.length > 0
+      ? analytics.marks.reduce((a, b) => a + b.marks, 0) /
+        analytics.marks.length
+      : 0;
+  const currentCgpa =
+    analytics.cgpaTrend.length > 0
+      ? analytics.cgpaTrend[analytics.cgpaTrend.length - 1].cgpa
+      : 0;
 
   return (
     <div className="space-y-8">
@@ -140,6 +186,86 @@ export default function StudentDashboard({
           <ShieldCheck size={20} />
           Request Data Change
         </button>
+      </div>
+
+      {/* Progress Summary Section */}
+      <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-8 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden">
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-6">
+            <Target className="w-8 h-8 text-blue-400" />
+            <h2 className="text-2xl font-bold">Academic Progress Summary</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="space-y-2">
+              <p className="text-slate-400 text-sm font-bold uppercase tracking-wider">
+                Current Standing
+              </p>
+              <div className="flex items-baseline gap-2">
+                <span className="text-4xl font-black text-blue-400">
+                  {currentCgpa}
+                </span>
+                <span className="text-slate-500 font-bold">CGPA</span>
+              </div>
+              <p className="text-xs text-slate-400">
+                Based on {analytics.cgpaTrend.length} semesters
+              </p>
+            </div>
+            <div className="space-y-2">
+              <p className="text-slate-400 text-sm font-bold uppercase tracking-wider">
+                Attendance Rate
+              </p>
+              <div className="flex items-baseline gap-2">
+                <span
+                  className={`text-4xl font-black ${analytics.attendanceRate < 75 ? "text-orange-400" : "text-emerald-400"}`}
+                >
+                  {analytics.attendanceRate.toFixed(1)}%
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">
+                {analytics.attendanceRate < 75
+                  ? "Below recommended 75%"
+                  : "Excellent consistency"}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <p className="text-slate-400 text-sm font-bold uppercase tracking-wider">
+                Predicted Outcome
+              </p>
+              <div className="flex items-baseline gap-2">
+                <span
+                  className={`text-3xl font-black ${analytics.prediction === "At Risk" ? "text-pink-400" : "text-blue-400"}`}
+                >
+                  {analytics.prediction}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">
+                AI-powered academic forecast
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-8 pt-8 border-t border-white/10 flex flex-wrap gap-4">
+            <div className="bg-white/5 px-4 py-2 rounded-xl border border-white/10 flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-emerald-400" />
+              <span className="text-sm font-medium">
+                Avg. Marks: {avgMarks.toFixed(1)}%
+              </span>
+            </div>
+            <div className="bg-white/5 px-4 py-2 rounded-xl border border-white/10 flex items-center gap-2">
+              <Star className="w-4 h-4 text-yellow-400" />
+              <span className="text-sm font-medium">
+                {user?.stars || 0} Stars Earned
+              </span>
+            </div>
+            <div className="bg-white/5 px-4 py-2 rounded-xl border border-white/10 flex items-center gap-2">
+              <Target className="w-4 h-4 text-blue-400" />
+              <span className="text-sm font-medium">
+                {user?.points || 0} Points Earned
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
       </div>
 
       {latestNotification && (
@@ -164,158 +290,377 @@ export default function StudentDashboard({
         </motion.div>
       )}
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          title="Current CGPA"
-          value={
-            analytics.cgpaTrend.length > 0
-              ? analytics.cgpaTrend[analytics.cgpaTrend.length - 1].cgpa
-              : "N/A"
-          }
-          icon={Target}
-          color="blue"
-        />
-        <StatCard
-          title="Attendance"
-          value={`${analytics.attendanceRate.toFixed(1)}%`}
-          icon={CheckCircle}
-          color={analytics.attendanceRate < 75 ? "orange" : "emerald"}
-          trend={
-            analytics.attendanceRate < 75
-              ? "Warning: Low attendance"
-              : "Safe zone"
-          }
-        />
-        <StatCard
-          title="Prediction"
-          value={analytics.prediction}
-          icon={BrainCircuit}
-          color={analytics.prediction === "At Risk" ? "pink" : "blue"}
-        />
-        <StatCard
-          title="Avg Marks"
-          value={
-            analytics.marks.length > 0
-              ? (
-                  analytics.marks.reduce((a, b) => a + b.marks, 0) /
-                  analytics.marks.length
-                ).toFixed(1)
-              : "0"
-          }
-          icon={TrendingUp}
-          color="yellow"
-        />
+      {/* Sub Tabs */}
+      <div className="flex items-center gap-4 border-b border-slate-200 pb-4 overflow-x-auto">
+        {[
+          "Overview",
+          "Attendance",
+          "Performance",
+          "Timetable",
+          "Achievements",
+        ].map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveSubTab(tab)}
+            className={`px-6 py-2 rounded-2xl font-bold transition-all whitespace-nowrap ${
+              activeSubTab === tab
+                ? "bg-blue-600 text-white shadow-lg shadow-blue-100"
+                : "text-slate-500 hover:bg-slate-100"
+            }`}
+          >
+            {tab}
+          </button>
+        ))}
       </div>
 
-      {/* Hero Performance Graph */}
-      <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h3 className="text-xl font-bold text-slate-900">
-              Overall Academic Performance
-            </h3>
-            <p className="text-slate-500">Your progress across all semesters</p>
+      {activeSubTab === "Achievements" && (
+        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h3 className="text-2xl font-black text-slate-900">
+                Your Achievements
+              </h3>
+              <p className="text-slate-500 font-medium">
+                Badges and milestones you've unlocked
+              </p>
+            </div>
+            <div className="p-3 bg-yellow-50 text-yellow-600 rounded-2xl">
+              <Sparkles size={28} />
+            </div>
           </div>
-          <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-2xl font-bold">
-            <TrendingUp size={20} />
-            <span>+12% vs last sem</span>
-          </div>
-        </div>
-        <div className="h-80">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={analytics.cgpaTrend}>
-              <CartesianGrid
-                strokeDasharray="3 3"
-                vertical={false}
-                stroke="#f1f5f9"
-              />
-              <XAxis
-                dataKey="semester"
-                stroke="#94a3b8"
-                fontSize={12}
-                tickFormatter={(v) => `Sem ${v}`}
-              />
-              <YAxis stroke="#94a3b8" fontSize={12} domain={[0, 10]} />
-              <Tooltip
-                cursor={{ fill: "#f8fafc" }}
-                contentStyle={{
-                  borderRadius: "20px",
-                  border: "none",
-                  boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1)",
-                }}
-              />
-              <Bar dataKey="cgpa" fill="#3b82f6" radius={[10, 10, 0, 0]}>
-                {analytics.cgpaTrend.map((entry, index) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={
-                      entry.cgpa >= 8
-                        ? "#10b981"
-                        : entry.cgpa >= 6
-                          ? "#3b82f6"
-                          : "#f43f5e"
-                    }
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
 
-      {/* Subject Slots */}
-      <div className="space-y-6">
-        <h3 className="text-xl font-bold text-slate-900">
-          Subject-wise Analysis
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {analytics.marks.map((m) => (
-            <motion.button
-              key={m.subject}
-              whileHover={{ y: -5 }}
-              onClick={() => setSelectedSubject(m)}
-              className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition-all text-left group"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl group-hover:scale-110 transition-transform">
-                  <BookOpen size={24} />
-                </div>
-                <div className="flex items-center gap-1">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <Star
-                      key={i}
-                      size={12}
-                      className={
-                        i <= m.marks / 20
-                          ? "text-yellow-400 fill-yellow-400"
-                          : "text-slate-200"
-                      }
-                    />
-                  ))}
-                </div>
-              </div>
-              <h4 className="font-bold text-slate-900 mb-1">{m.subject}</h4>
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-slate-500">
-                  {m.marks >= 40 ? "Pass" : "Fail"}
-                </p>
-                <span
-                  className={`text-xs font-bold px-2 py-1 rounded-lg ${
-                    m.marks >= 75
-                      ? "bg-emerald-50 text-emerald-600"
-                      : m.marks >= 40
-                        ? "bg-blue-50 text-blue-600"
-                        : "bg-red-50 text-red-600"
-                  }`}
+          {achievements.length === 0 ? (
+            <div className="py-12 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+              <p className="text-slate-500 italic">
+                No achievements unlocked yet. Keep learning!
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {achievements.map((achievement, idx) => (
+                <motion.div
+                  key={idx}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.1 }}
+                  className="p-6 bg-gradient-to-br from-white to-slate-50 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4 group hover:border-yellow-200 transition-all"
                 >
-                  {m.marks}%
-                </span>
-              </div>
-            </motion.button>
-          ))}
+                  <div className="p-4 bg-yellow-100 text-yellow-600 rounded-2xl group-hover:scale-110 transition-transform">
+                    <Star size={24} fill="currentColor" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-900">
+                      {achievement.title}
+                    </h4>
+                    <p className="text-xs text-slate-500">
+                      {achievement.description}
+                    </p>
+                    <p className="text-[10px] font-bold text-yellow-600 uppercase mt-2">
+                      Unlocked on{" "}
+                      {new Date(achievement.unlocked_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
         </div>
-      </div>
+      )}
+
+      {activeSubTab === "Timetable" && (
+        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h3 className="text-2xl font-black text-slate-900">
+                Weekly Timetable
+              </h3>
+              <p className="text-slate-500 font-medium">
+                {user?.class} • Semester {user?.semester}
+              </p>
+            </div>
+            <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+              <Calendar size={28} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+            {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"].map(
+              (day) => (
+                <div key={day} className="space-y-4">
+                  <div className="bg-slate-900 text-white py-3 px-4 rounded-2xl text-center font-bold text-sm">
+                    {day}
+                  </div>
+                  <div className="space-y-3">
+                    {timetable.filter((t) => t.day === day).length === 0 ? (
+                      <div className="p-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase">
+                          No Classes
+                        </p>
+                      </div>
+                    ) : (
+                      timetable
+                        .filter((t) => t.day === day)
+                        .sort((a, b) => a.time.localeCompare(b.time))
+                        .map((slot, idx) => (
+                          <motion.div
+                            key={idx}
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm hover:border-blue-200 transition-all group"
+                          >
+                            <p className="text-[10px] font-bold text-blue-600 uppercase mb-1">
+                              {slot.time}
+                            </p>
+                            <p className="font-bold text-slate-900 text-sm group-hover:text-blue-600 transition-colors">
+                              {slot.subject}
+                            </p>
+                            <p className="text-[10px] font-medium text-slate-400 mt-1">
+                              Prof. {slot.teacher}
+                            </p>
+                          </motion.div>
+                        ))
+                    )}
+                  </div>
+                </div>
+              ),
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeSubTab === "Overview" && (
+        <>
+          {/* Stats Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <StatCard
+              title="Total Points"
+              value={user?.points || 0}
+              icon={Target}
+              color="blue"
+            />
+            <StatCard
+              title="Total Stars"
+              value={user?.stars || 0}
+              icon={Star}
+              color="yellow"
+            />
+            <StatCard
+              title="Attendance"
+              value={`${analytics.attendanceRate.toFixed(1)}%`}
+              icon={CheckCircle}
+              color={analytics.attendanceRate < 75 ? "orange" : "emerald"}
+              trend={
+                analytics.attendanceRate < 75
+                  ? "Warning: Low attendance"
+                  : "Safe zone"
+              }
+            />
+            <StatCard
+              title="Avg Marks"
+              value={avgMarks.toFixed(1)}
+              icon={TrendingUp}
+              color="emerald"
+            />
+          </div>
+
+          {/* Hero Performance Graph */}
+          <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900">
+                  Overall Academic Performance
+                </h3>
+                <p className="text-slate-500">
+                  Your progress across all semesters
+                </p>
+              </div>
+              <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-2xl font-bold">
+                <TrendingUp size={20} />
+                <span>+12% vs last sem</span>
+              </div>
+            </div>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={analytics.cgpaTrend}>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="#f1f5f9"
+                  />
+                  <XAxis
+                    dataKey="semester"
+                    stroke="#94a3b8"
+                    fontSize={12}
+                    tickFormatter={(v) => `Sem ${v}`}
+                  />
+                  <YAxis stroke="#94a3b8" fontSize={12} domain={[0, 10]} />
+                  <Tooltip
+                    cursor={{ fill: "#f8fafc" }}
+                    contentStyle={{
+                      borderRadius: "20px",
+                      border: "none",
+                      boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1)",
+                    }}
+                  />
+                  <Bar dataKey="cgpa" fill="#3b82f6" radius={[10, 10, 0, 0]}>
+                    {analytics.cgpaTrend.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={
+                          entry.cgpa >= 8
+                            ? "#10b981"
+                            : entry.cgpa >= 6
+                              ? "#3b82f6"
+                              : "#f43f5e"
+                        }
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </>
+      )}
+
+      {activeSubTab === "Attendance" && (
+        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h3 className="text-xl font-bold text-slate-900">
+                Attendance Records
+              </h3>
+              <p className="text-slate-500">
+                Subject-wise attendance breakdown
+              </p>
+            </div>
+            <div className="p-4 bg-blue-50 rounded-2xl">
+              <p className="text-xs font-bold text-blue-400 uppercase mb-1">
+                Overall Rate
+              </p>
+              <p className="text-2xl font-black text-blue-600">
+                {analytics.attendanceRate.toFixed(1)}%
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {analytics.marks.map((m) => (
+              <div
+                key={m.subject}
+                className="p-6 bg-slate-50 rounded-3xl border border-slate-100"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-bold text-slate-900">{m.subject}</h4>
+                  <span className="text-xs font-bold text-blue-600">92%</span>
+                </div>
+                <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden mb-4">
+                  <div className="bg-blue-600 h-full w-[92%]"></div>
+                </div>
+                <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">
+                  <span>Attended: 23</span>
+                  <span>Total: 25</span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleCheckIn(m.subject_id)}
+                    className="flex-1 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-all"
+                  >
+                    Check In
+                  </button>
+                  <button
+                    onClick={() => {
+                      setRequestData({
+                        ...requestData,
+                        field: "attendance",
+                        subjectId: String(m.subject_id),
+                      });
+                      setShowRequestModal(true);
+                    }}
+                    className="flex-1 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all"
+                  >
+                    Correction
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {activeSubTab === "Performance" && (
+        <div className="space-y-8">
+          {/* Subject Slots */}
+          <div className="space-y-6">
+            <h3 className="text-xl font-bold text-slate-900">
+              Subject-wise Analysis
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {analytics.marks.map((m) => (
+                <motion.div
+                  key={m.subject}
+                  whileHover={{ y: -5 }}
+                  onClick={() => setSelectedSubject(m)}
+                  className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition-all text-left group cursor-pointer"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl group-hover:scale-110 transition-transform">
+                      <BookOpen size={24} />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <Star
+                          key={i}
+                          size={12}
+                          className={
+                            i <= m.marks / 20
+                              ? "text-yellow-400 fill-yellow-400"
+                              : "text-slate-200"
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <h4 className="font-bold text-slate-900 mb-1">{m.subject}</h4>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-slate-500">
+                      {m.marks >= 40 ? "Pass" : "Fail"}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRequestData({
+                            ...requestData,
+                            field: "marks",
+                            subjectId: String(m.subject_id),
+                          });
+                          setShowRequestModal(true);
+                        }}
+                        className="p-1.5 bg-slate-100 text-slate-500 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-all"
+                        title="Request Correction"
+                      >
+                        <AlertTriangle size={14} />
+                      </button>
+                      <span
+                        className={`text-xs font-bold px-2 py-1 rounded-lg ${
+                          m.marks >= 75
+                            ? "bg-emerald-50 text-emerald-600"
+                            : m.marks >= 40
+                              ? "bg-blue-50 text-blue-600"
+                              : "bg-red-50 text-red-600"
+                        }`}
+                      >
+                        {m.marks}%
+                      </span>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Subject Detail Modal */}
       <AnimatePresence>
@@ -519,32 +864,119 @@ export default function StudentDashboard({
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {assignments.slice(0, 3).map((assignment) => (
               <div
                 key={assignment.id}
-                className="p-5 bg-slate-50 rounded-2xl border border-slate-100 hover:border-blue-200 transition-all group"
+                className={`p-6 rounded-3xl border transition-all flex flex-col gap-4 ${
+                  assignment.is_completed
+                    ? "bg-slate-50 border-slate-100 opacity-60"
+                    : "bg-white border-slate-200 shadow-sm hover:border-blue-300"
+                }`}
               >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="p-2 bg-white rounded-xl text-blue-600 shadow-sm group-hover:scale-110 transition-transform">
-                    <FileText size={18} />
+                <div className="flex items-center justify-between">
+                  <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                    <FileText size={20} />
                   </div>
-                  <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md">
-                    {assignment.marks} Marks
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {assignment.priority > 0 && (
+                      <span className="bg-red-100 text-red-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
+                        High Priority
+                      </span>
+                    )}
+                    <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md">
+                      {assignment.marks} Marks
+                    </span>
+                  </div>
                 </div>
-                <h4 className="font-bold text-slate-900 mb-1">
-                  {assignment.title}
-                </h4>
-                <p className="text-sm text-slate-500 mb-3">
-                  Teacher: {assignment.teacher_name}
-                </p>
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 bg-orange-400 rounded-full"></span>
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    Pending
-                  </span>
+                <div>
+                  <h4
+                    className={`font-bold ${assignment.is_completed ? "text-slate-500 line-through" : "text-slate-900"}`}
+                  >
+                    {assignment.title}
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Subject: {assignment.subject_name || "General"}
+                  </p>
+                  <div className="flex flex-col gap-1 mt-2">
+                    {assignment.created_at && (
+                      <p className="text-[10px] text-slate-400 flex items-center gap-1">
+                        <Clock size={10} />
+                        Posted:{" "}
+                        {new Date(assignment.created_at).toLocaleDateString()}
+                      </p>
+                    )}
+                    {assignment.due_date && (
+                      <p className="text-xs font-bold text-orange-500 flex items-center gap-1">
+                        <Calendar size={12} />
+                        Due:{" "}
+                        {new Date(assignment.due_date).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
                 </div>
+
+                {assignment.file_url && (
+                  <a
+                    href={assignment.file_url}
+                    download
+                    className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-xs font-bold hover:bg-blue-100 transition-colors"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Download size={14} />
+                    Download Resource
+                  </a>
+                )}
+
+                {!assignment.is_completed && (
+                  <div className="pt-4 border-t border-slate-100 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">
+                          Priority:
+                        </span>
+                        <select
+                          value={assignment.priority}
+                          onChange={(e) =>
+                            handleUpdateAssignment(
+                              assignment.id,
+                              parseInt(e.target.value),
+                              assignment.due_date,
+                            )
+                          }
+                          className="text-[10px] font-bold bg-slate-100 px-2 py-1 rounded-lg outline-none"
+                        >
+                          <option value={0}>Normal</option>
+                          <option value={1}>High</option>
+                        </select>
+                      </div>
+                      <button
+                        onClick={() => handleCompleteAssignment(assignment.id)}
+                        className="p-2 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-all"
+                        title="Mark as Completed"
+                      >
+                        <CheckCircle size={16} />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">
+                        Due:
+                      </span>
+                      <input
+                        type="date"
+                        value={assignment.due_date || ""}
+                        onChange={(e) =>
+                          handleUpdateAssignment(
+                            assignment.id,
+                            assignment.priority,
+                            e.target.value,
+                          )
+                        }
+                        className="text-[10px] font-bold bg-slate-100 px-2 py-1 rounded-lg outline-none flex-1"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>

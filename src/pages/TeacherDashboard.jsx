@@ -11,8 +11,12 @@ import {
   Clock,
   Star,
   X,
+  Lightbulb,
+  Trash2,
+  FileText,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import ConfirmationModal from "../components/ConfirmationModal";
 import {
   BarChart,
   Bar,
@@ -24,12 +28,15 @@ import {
   Cell,
 } from "recharts";
 
-export default function TeacherDashboard() {
+export default function TeacherDashboard({ setActiveTab }) {
   const { user } = useAuthStore();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
   const [showAddMarksModal, setShowAddMarksModal] = useState(false);
+  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [subjects, setSubjects] = useState([]);
   const [faculty, setFaculty] = useState([]);
@@ -38,6 +45,11 @@ export default function TeacherDashboard() {
     marks: 50,
     semester: 1,
     teacher_id: "",
+  });
+  const [attendanceData, setAttendanceData] = useState({
+    subject_id: "",
+    status: "Present",
+    date: new Date().toISOString().split("T")[0],
   });
   const [newStudent, setNewStudent] = useState({
     name: "",
@@ -48,8 +60,12 @@ export default function TeacherDashboard() {
   });
   const [error, setError] = useState("");
   const [latestNotification, setLatestNotification] = useState(null);
+  const [assignmentAnalytics, setAssignmentAnalytics] = useState([]);
+  const [quizAnalytics, setQuizAnalytics] = useState([]);
+  const [showAnalytics, setShowAnalytics] = useState(false);
 
   const classes = [
+    "SOE",
     "Computer Science",
     "Data Science",
     "Artificial Intelligence",
@@ -81,44 +97,57 @@ export default function TeacherDashboard() {
       api.getAssignments(),
       api.getSubjects(),
       api.getFaculty(),
-    ]).then(([students, assignments, subjectsRes, facultyRes]) => {
-      setSubjects(subjectsRes);
-      setFaculty(facultyRes);
-      if (subjectsRes.length > 0)
-        setNewMark((prev) => ({ ...prev, subject_id: subjectsRes[0].id }));
-      if (facultyRes.length > 0)
-        setNewMark((prev) => ({ ...prev, teacher_id: facultyRes[0].id }));
+      api.getAssignmentAnalytics(),
+      api.getQuizAnalytics(),
+    ]).then(
+      ([
+        students,
+        assignments,
+        subjectsRes,
+        facultyRes,
+        assignAnalytics,
+        quizAnalyticsRes,
+      ]) => {
+        setSubjects(subjectsRes);
+        setFaculty(facultyRes);
+        setAssignmentAnalytics(assignAnalytics);
+        setQuizAnalytics(quizAnalyticsRes);
+        if (subjectsRes.length > 0)
+          setNewMark((prev) => ({ ...prev, subject_id: subjectsRes[0].id }));
+        if (facultyRes.length > 0)
+          setNewMark((prev) => ({ ...prev, teacher_id: facultyRes[0].id }));
 
-      const classStats = students.reduce((acc, s) => {
-        acc[s.class] = (acc[s.class] || 0) + 1;
-        return acc;
-      }, {});
+        const classStats = students.reduce((acc, s) => {
+          acc[s.class] = (acc[s.class] || 0) + 1;
+          return acc;
+        }, {});
 
-      const chartData = Object.entries(classStats).map(([name, value]) => ({
-        name,
-        value,
-      }));
+        const chartData = Object.entries(classStats).map(([name, value]) => ({
+          name,
+          value,
+        }));
 
-      const studentPerformance = students.map((s) => ({
-        ...s,
-        avgMarks: s.avgMarks || 0,
-        attendance: Math.floor(Math.random() * 30) + 70,
-        achievements: Math.floor(Math.random() * 5),
-      }));
+        const studentPerformance = students.map((s) => ({
+          ...s,
+          avgMarks: s.avgMarks || 0,
+          attendance: Math.floor(Math.random() * 30) + 70,
+          achievements: Math.floor(Math.random() * 5),
+        }));
 
-      setStats({
-        totalStudents: students.length,
-        totalAssignments: assignments.length,
-        avgAttendance: 85.5,
-        atRiskStudents: studentPerformance.filter((s) => s.avgMarks < 50)
-          .length,
-        classDistribution: chartData,
-        studentPerformance: studentPerformance.sort(
-          (a, b) => b.avgMarks - a.avgMarks,
-        ),
-      });
-      setLoading(false);
-    });
+        setStats({
+          totalStudents: students.length,
+          totalAssignments: assignments.length,
+          avgAttendance: 85.5,
+          atRiskStudents: studentPerformance.filter((s) => s.avgMarks < 50)
+            .length,
+          classDistribution: chartData,
+          studentPerformance: studentPerformance.sort(
+            (a, b) => b.avgMarks - a.avgMarks,
+          ),
+        });
+        setLoading(false);
+      },
+    );
   };
 
   useEffect(() => {
@@ -154,6 +183,34 @@ export default function TeacherDashboard() {
     } catch (err) {
       alert(err.message);
     }
+  };
+
+  const handleUpdateAttendance = async (e) => {
+    e.preventDefault();
+    try {
+      await api.updateAttendance(selectedStudent.id, attendanceData);
+      setShowAttendanceModal(false);
+      alert("Attendance updated successfully!");
+      fetchStats();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleDeleteStudent = async () => {
+    if (!studentToDelete) return;
+    try {
+      await api.deleteStudent(studentToDelete.id);
+      setStudentToDelete(null);
+      fetchStats();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const confirmDelete = (student) => {
+    setStudentToDelete(student);
+    setShowDeleteConfirm(true);
   };
 
   if (loading)
@@ -237,36 +294,65 @@ export default function TeacherDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
           <h3 className="text-xl font-bold text-slate-900 mb-6">
-            Student Distribution by Class
+            Learning Tools Management
           </h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stats.classDistribution}>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  vertical={false}
-                  stroke="#f1f5f9"
-                />
-                <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} />
-                <YAxis stroke="#94a3b8" fontSize={12} />
-                <Tooltip
-                  cursor={{ fill: "#f8fafc" }}
-                  contentStyle={{
-                    borderRadius: "20px",
-                    border: "none",
-                    boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1)",
-                  }}
-                />
-                <Bar dataKey="value" radius={[10, 10, 0, 0]}>
-                  {stats.classDistribution.map((_, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={COLORS[index % COLORS.length]}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="grid grid-cols-2 gap-4">
+            <button
+              onClick={() => setActiveTab?.("Quizzes")}
+              className="p-6 bg-blue-50 rounded-3xl border border-blue-100 text-left group hover:bg-blue-100 transition-all"
+            >
+              <div className="p-3 bg-white rounded-2xl text-blue-600 w-fit mb-4 group-hover:scale-110 transition-transform shadow-sm">
+                <BrainCircuit size={24} />
+              </div>
+              <h4 className="font-bold text-slate-900">Manage Quizzes</h4>
+              <p className="text-xs text-slate-500 mt-1">
+                Create, edit and delete quizzes
+              </p>
+            </button>
+            <button
+              onClick={() => setActiveTab?.("Flashcards")}
+              className="p-6 bg-orange-50 rounded-3xl border border-orange-100 text-left group hover:bg-orange-100 transition-all"
+            >
+              <div className="p-3 bg-white rounded-2xl text-orange-600 w-fit mb-4 group-hover:scale-110 transition-transform shadow-sm">
+                <Lightbulb size={24} />
+              </div>
+              <h4 className="font-bold text-slate-900">Manage Flashcards</h4>
+              <p className="text-xs text-slate-500 mt-1">
+                Update active recall cards
+              </p>
+            </button>
+            <button
+              onClick={() => setShowAnalytics(!showAnalytics)}
+              className={`col-span-2 p-6 rounded-3xl border transition-all flex items-center justify-between ${
+                showAnalytics
+                  ? "bg-indigo-600 text-white border-indigo-700"
+                  : "bg-indigo-50 text-indigo-900 border-indigo-100 hover:bg-indigo-100"
+              }`}
+            >
+              <div className="flex items-center gap-4">
+                <div
+                  className={`p-3 rounded-2xl ${showAnalytics ? "bg-white/20" : "bg-white"} shadow-sm`}
+                >
+                  <TrendingUp
+                    size={24}
+                    className={showAnalytics ? "text-white" : "text-indigo-600"}
+                  />
+                </div>
+                <div>
+                  <h4 className="font-bold">Submission Analytics</h4>
+                  <p
+                    className={`text-xs ${showAnalytics ? "text-indigo-100" : "text-slate-500"}`}
+                  >
+                    Track assignment & quiz completions
+                  </p>
+                </div>
+              </div>
+              <span
+                className={`px-4 py-2 rounded-xl text-xs font-bold ${showAnalytics ? "bg-white text-indigo-600" : "bg-indigo-600 text-white"}`}
+              >
+                {showAnalytics ? "Hide Dashboard" : "View Dashboard"}
+              </span>
+            </button>
           </div>
         </div>
 
@@ -300,6 +386,104 @@ export default function TeacherDashboard() {
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
         </div>
       </div>
+
+      {showAnalytics && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          className="grid grid-cols-1 lg:grid-cols-2 gap-8"
+        >
+          {/* Assignment Analytics */}
+          <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-slate-900">
+                Assignment Submissions
+              </h3>
+              <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                <FileText size={20} />
+              </div>
+            </div>
+            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+              {assignmentAnalytics.length === 0 ? (
+                <p className="text-center py-8 text-slate-500 italic">
+                  No assignment data available
+                </p>
+              ) : (
+                assignmentAnalytics.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between"
+                  >
+                    <div>
+                      <p className="font-bold text-slate-900 text-sm">
+                        {item.title}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {item.student_name} • {item.subject_name}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span
+                        className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
+                          item.is_completed
+                            ? "bg-emerald-100 text-emerald-600"
+                            : "bg-orange-100 text-orange-600"
+                        }`}
+                      >
+                        {item.is_completed ? "Submitted" : "Pending"}
+                      </span>
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        Due: {new Date(item.due_date).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Quiz Analytics */}
+          <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-slate-900">Quiz Results</h3>
+              <div className="p-2 bg-purple-50 text-purple-600 rounded-xl">
+                <BrainCircuit size={20} />
+              </div>
+            </div>
+            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+              {quizAnalytics.length === 0 ? (
+                <p className="text-center py-8 text-slate-500 italic">
+                  No quiz results available
+                </p>
+              ) : (
+                quizAnalytics.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between"
+                  >
+                    <div>
+                      <p className="font-bold text-slate-900 text-sm">
+                        {item.title}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {item.student_name} • {item.subject_name}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-slate-900">
+                        {item.score}/{item.total}
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        {new Date(item.completed_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {/* Student Performance Table */}
       <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
@@ -411,15 +595,35 @@ export default function TeacherDashboard() {
                     </span>
                   </td>
                   <td className="px-8 py-6">
-                    <button
-                      onClick={() => {
-                        setSelectedStudent(student);
-                        setShowAddMarksModal(true);
-                      }}
-                      className="text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg transition-all"
-                    >
-                      + Marks
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setSelectedStudent(student);
+                          setShowAddMarksModal(true);
+                        }}
+                        className="text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg transition-all"
+                      >
+                        + Marks
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedStudent(student);
+                          setShowAttendanceModal(true);
+                        }}
+                        className="text-xs font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg transition-all"
+                      >
+                        Attendance
+                      </button>
+                      {user?.role === "teacher" && user?.isClassTeacher && (
+                        <button
+                          onClick={() => confirmDelete(student)}
+                          className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                          title="Delete Student"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -665,6 +869,20 @@ export default function TeacherDashboard() {
           </motion.div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showDeleteConfirm}
+        onClose={() => {
+          setShowDeleteConfirm(false);
+          setStudentToDelete(null);
+        }}
+        onConfirm={handleDeleteStudent}
+        title="Delete Student Account?"
+        message={`Are you sure you want to delete ${studentToDelete?.name}'s account? This will permanently remove their academic records, attendance, and assignments.`}
+        confirmText="Delete Account"
+        type="danger"
+      />
     </div>
   );
 }

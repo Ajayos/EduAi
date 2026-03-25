@@ -13,8 +13,10 @@ import {
   Plus,
   X,
   Trash2,
+  BookOpen,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import ConfirmationModal from "../components/ConfirmationModal";
 
 export default function QuizPage() {
   const { user } = useAuthStore();
@@ -26,8 +28,11 @@ export default function QuizPage() {
   const [showResult, setShowResult] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingQuiz, setEditingQuiz] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState(null);
 
-  // Quiz Creation State
+  // Quiz Creation/Edit State
   const [newQuiz, setNewQuiz] = useState({
     title: "",
     subject_id: "",
@@ -64,8 +69,8 @@ export default function QuizPage() {
     try {
       const res = await api.getSubjects();
       setSubjects(res);
-      if (res.length > 0) {
-        setNewQuiz((prev) => ({ ...prev, subject_id: res[0].id.toString() }));
+      if (res.length > 0 && !editingQuiz) {
+        setNewQuiz((prev) => ({ ...prev, subject_id: String(res[0].id) }));
       }
     } catch (err) {
       console.error(err);
@@ -75,11 +80,16 @@ export default function QuizPage() {
   const handleCreateQuiz = async (e) => {
     e.preventDefault();
     try {
-      await api.createQuiz(newQuiz);
+      if (editingQuiz) {
+        await api.updateQuiz(editingQuiz.id, newQuiz);
+      } else {
+        await api.createQuiz(newQuiz);
+      }
       setShowAddModal(false);
+      setEditingQuiz(null);
       setNewQuiz({
         title: "",
-        subject_id: subjects[0]?.id.toString() || "",
+        subject_id: subjects[0]?.id ? String(subjects[0].id) : "",
         questions: [
           {
             text: "",
@@ -94,6 +104,34 @@ export default function QuizPage() {
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const handleDeleteQuiz = async () => {
+    if (!itemToDelete) return;
+    try {
+      await api.deleteQuiz(itemToDelete.id);
+      setShowDeleteConfirm(false);
+      setItemToDelete(null);
+      fetchQuizzes();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete quiz");
+    }
+  };
+
+  const handleDeleteClick = (quiz) => {
+    setItemToDelete(quiz);
+    setShowDeleteConfirm(true);
+  };
+
+  const openEditModal = (quiz) => {
+    setEditingQuiz(quiz);
+    setNewQuiz({
+      title: quiz.title,
+      subject_id: String(quiz.subject_id),
+      questions: JSON.parse(quiz.questions),
+    });
+    setShowAddModal(true);
   };
 
   const addQuestion = () => {
@@ -348,10 +386,16 @@ export default function QuizPage() {
               )}
               {user?.role === "teacher" && (
                 <div className="flex items-center gap-2">
-                  <button className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all">
+                  <button
+                    onClick={() => openEditModal(quiz)}
+                    className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all"
+                  >
                     Edit
                   </button>
-                  <button className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition-all">
+                  <button
+                    onClick={() => handleDeleteClick(quiz)}
+                    className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                  >
                     <Trash2 size={20} />
                   </button>
                 </div>
@@ -374,14 +418,19 @@ export default function QuizPage() {
               <div className="flex items-center justify-between mb-8">
                 <div>
                   <h2 className="text-2xl font-bold text-slate-900">
-                    Create New Quiz
+                    {editingQuiz ? "Edit Quiz" : "Create New Quiz"}
                   </h2>
                   <p className="text-slate-500">
-                    Design a quiz for your students
+                    {editingQuiz
+                      ? "Update your quiz details"
+                      : "Design a quiz for your students"}
                   </p>
                 </div>
                 <button
-                  onClick={() => setShowAddModal(false)}
+                  onClick={() => {
+                    setShowAddModal(false);
+                    setEditingQuiz(null);
+                  }}
                   className="p-2 hover:bg-slate-100 rounded-full transition-colors"
                 >
                   <X size={24} />
@@ -495,13 +544,23 @@ export default function QuizPage() {
                   type="submit"
                   className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
                 >
-                  Publish Quiz
+                  {editingQuiz ? "Update Quiz" : "Publish Quiz"}
                 </button>
               </form>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
+
+      <ConfirmationModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDeleteQuiz}
+        title="Delete Quiz"
+        message={`Are you sure you want to delete the quiz "${itemToDelete?.title}"? This action cannot be undone.`}
+        confirmText="Delete Quiz"
+        type="danger"
+      />
     </div>
   );
 }

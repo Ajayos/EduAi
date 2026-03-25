@@ -45,7 +45,7 @@ export default function App() {
         if (activeTab === "Flashcards") return <FlashcardPage />;
         if (activeTab === "Approvals") return <VerificationManager />;
         if (activeTab === "Timetable") return <TimetablePage />;
-        return <TeacherDashboard />;
+        return <TeacherDashboard setActiveTab={setActiveTab} />;
       case "student":
         if (activeTab === "Learning") return <PersonalizedLearning />;
         if (activeTab === "Assignments") return <AssignmentsPage />;

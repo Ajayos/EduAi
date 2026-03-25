@@ -22,11 +22,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-export default function DashboardLayout({
-  children,
-  activeTab,
-  setActiveTab,
-}) {
+export default function DashboardLayout({ children, activeTab, setActiveTab }) {
   const { user, logout } = useAuthStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
@@ -66,7 +62,7 @@ export default function DashboardLayout({
           <span className="text-xl font-bold text-slate-900">EduAI</span>
         </div>
 
-        <nav className="flex-1 px-3 space-y-1">
+        <nav className="flex-1 px-4 space-y-1">
           {filteredMenu.map((item) => (
             <button
               key={item.label}
@@ -110,7 +106,7 @@ export default function DashboardLayout({
           )}
         </nav>
 
-        <div className="p-3 border-t border-slate-100">
+        <div className="p-4 border-t border-slate-100">
           <div className="bg-slate-50 rounded-2xl p-4 mb-4">
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
               Logged in as

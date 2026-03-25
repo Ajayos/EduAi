@@ -1,4 +1,5 @@
 import express from "express";
+import bodyParser from "body-parser";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -6,11 +7,32 @@ import sqlite3 from "better-sqlite3";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
+import multer from "multer";
+import fs from "fs";
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Ensure uploads directory exists
+const uploadDir = path.join(__dirname, "public", "uploads");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// Multer setup
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  },
+});
+
+const upload = multer({ storage });
 
 const app = express();
 const PORT = 3000;
@@ -18,6 +40,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "eduai-secret-key-2026";
 
 // Database Setup
 const db = new sqlite3("eduai.db");
+db.pragma("foreign_keys = ON");
 
 // Initialize Schema
 db.exec(`
@@ -60,8 +83,8 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     teacher_id INTEGER,
     subject_id INTEGER,
-    FOREIGN KEY(teacher_id) REFERENCES teachers(id),
-    FOREIGN KEY(subject_id) REFERENCES subjects(id)
+    FOREIGN KEY(teacher_id) REFERENCES teachers(id) ON DELETE CASCADE,
+    FOREIGN KEY(subject_id) REFERENCES subjects(id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS marks (
@@ -71,9 +94,9 @@ db.exec(`
     semester INTEGER,
     marks INTEGER,
     teacher_id INTEGER,
-    FOREIGN KEY(student_id) REFERENCES students(id),
-    FOREIGN KEY(subject_id) REFERENCES subjects(id),
-    FOREIGN KEY(teacher_id) REFERENCES teachers(id)
+    FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE,
+    FOREIGN KEY(subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
+    FOREIGN KEY(teacher_id) REFERENCES teachers(id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS attendance (
@@ -82,19 +105,27 @@ db.exec(`
     subject_id INTEGER,
     date TEXT,
     status TEXT,
-    FOREIGN KEY(student_id) REFERENCES students(id),
-    FOREIGN KEY(subject_id) REFERENCES subjects(id)
+    FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE,
+    FOREIGN KEY(subject_id) REFERENCES subjects(id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS assignments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     teacher_id INTEGER,
     student_id INTEGER,
+    subject_id INTEGER,
     title TEXT,
     marks INTEGER,
-    FOREIGN KEY(teacher_id) REFERENCES teachers(id),
-    FOREIGN KEY(student_id) REFERENCES students(id)
+    priority INTEGER DEFAULT 0,
+    due_date TEXT,
+    is_completed BOOLEAN DEFAULT 0,
+    file_url TEXT,
+    FOREIGN KEY(teacher_id) REFERENCES teachers(id) ON DELETE CASCADE,
+    FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE,
+    FOREIGN KEY(subject_id) REFERENCES subjects(id) ON DELETE CASCADE
   );
+
+  
 
   CREATE TABLE IF NOT EXISTS flashcards (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -102,8 +133,8 @@ db.exec(`
     subject_id INTEGER,
     question TEXT,
     answer TEXT,
-    FOREIGN KEY(teacher_id) REFERENCES teachers(id),
-    FOREIGN KEY(subject_id) REFERENCES subjects(id)
+    FOREIGN KEY(teacher_id) REFERENCES teachers(id) ON DELETE CASCADE,
+    FOREIGN KEY(subject_id) REFERENCES subjects(id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS quizzes (
@@ -112,8 +143,8 @@ db.exec(`
     subject_id INTEGER,
     title TEXT,
     questions TEXT, -- JSON string
-    FOREIGN KEY(teacher_id) REFERENCES teachers(id),
-    FOREIGN KEY(subject_id) REFERENCES subjects(id)
+    FOREIGN KEY(teacher_id) REFERENCES teachers(id) ON DELETE CASCADE,
+    FOREIGN KEY(subject_id) REFERENCES subjects(id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS quiz_results (
@@ -123,8 +154,8 @@ db.exec(`
     score INTEGER,
     total INTEGER,
     completed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(student_id) REFERENCES students(id),
-    FOREIGN KEY(quiz_id) REFERENCES quizzes(id)
+    FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE,
+    FOREIGN KEY(quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS tasks (
@@ -135,17 +166,21 @@ db.exec(`
     points INTEGER,
     is_completed BOOLEAN DEFAULT 0,
     type TEXT, -- 'improvement', 'revision', 'quiz', 'flashcard'
-    FOREIGN KEY(student_id) REFERENCES students(id)
+    priority INTEGER DEFAULT 0,
+    due_date TEXT,
+    FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS achievements (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     student_id INTEGER,
     title TEXT,
+    description TEXT,
     icon TEXT,
     unlocked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(student_id) REFERENCES students(id)
+    FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
   );
+
 
   CREATE TABLE IF NOT EXISTS timetable (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -162,7 +197,7 @@ db.exec(`
     student_id INTEGER,
     semester INTEGER,
     cgpa REAL,
-    FOREIGN KEY(student_id) REFERENCES students(id)
+    FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS verification_requests (
@@ -172,7 +207,7 @@ db.exec(`
     old_value TEXT,
     new_value TEXT,
     status TEXT DEFAULT 'pending',
-    FOREIGN KEY(student_id) REFERENCES students(id)
+    FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS notifications (
@@ -192,6 +227,14 @@ try {
 try {
   db.prepare("ALTER TABLE quizzes ADD COLUMN subject_id INTEGER").run();
 } catch (e) {}
+try {
+    db.prepare("ALTER TABLE assignments ADD COLUMN file_url TEXT").run();
+  } catch (e) {
+    // Column already exists or other error
+  }
+    try {
+    db.prepare("ALTER TABLE achievements ADD COLUMN description TEXT").run();
+  } catch (e) {}
 
 // Seed Admin if not exists
 const adminExists = db
@@ -215,133 +258,206 @@ if (!adminExists) {
 const subjectsCount = db
   .prepare("SELECT COUNT(*) as count FROM subjects")
   .get().count;
-if (subjectsCount === 0) {
+if (subjectsCount < 50) {
+  db.prepare("DELETE FROM subjects").run();
   const seedSubjects = [
-    // Semester 1
+    // Semester 1 (S1)
     {
-      name: "Engineering Mathematics I",
+      name: "GAMAT101 – Mathematics for Information Science-1 (Linear Algebra)",
       semester: 1,
-      class: "Computer Science",
+      class: "CSE",
     },
-    { name: "Engineering Physics", semester: 1, class: "Computer Science" },
-    { name: "Engineering Chemistry", semester: 1, class: "Computer Science" },
-    { name: "Engineering Graphics", semester: 1, class: "Computer Science" },
     {
-      name: "Basics of Civil Engineering",
+      name: "GAPHT121 – Physics for Information Science",
       semester: 1,
-      class: "Computer Science",
+      class: "CSE",
     },
     {
-      name: "Basics of Mechanical Engineering",
+      name: "GACYT122 – Chemistry for Information Science",
       semester: 1,
-      class: "Computer Science",
+      class: "CSE",
+    },
+    {
+      name: "GXEST103 – Engineering Graphics and Computer Aided Drawing",
+      semester: 1,
+      class: "CSE",
+    },
+    {
+      name: "GXEST104 – Introduction to Electrical and Electronics Engineering",
+      semester: 1,
+      class: "CSE",
+    },
+    {
+      name: "UCEST105 – Algorithmic Thinking with Python",
+      semester: 1,
+      class: "CSE",
+    },
+    {
+      name: "GAESL106 – Basic Electrical and Electronics Engineering Workshop",
+      semester: 1,
+      class: "CSE",
+    },
+    { name: "UCPST127 – Health and Wellness", semester: 1, class: "CSE" },
+    {
+      name: "UCHUT128 – Life Skills and Professional Communication",
+      semester: 1,
+      class: "CSE",
+    },
+    {
+      name: "UCSEM129 – Skill Enhancement Course: Digital 101 (NASSCOM MOOC)",
+      semester: 1,
+      class: "CSE",
     },
 
-    // Semester 2
+    // Semester 2 (S2)
     {
-      name: "Engineering Mathematics II",
+      name: "VECTOR CALCULUS, DIFFERENTIAL EQUATIONS",
       semester: 2,
-      class: "Computer Science",
+      class: "CSE",
     },
-    { name: "Engineering Mechanics", semester: 2, class: "Computer Science" },
-    {
-      name: "Basics of Electrical Engineering",
-      semester: 2,
-      class: "Computer Science",
-    },
-    {
-      name: "Basics of Electronics Engineering",
-      semester: 2,
-      class: "Computer Science",
-    },
-    { name: "Programming in C", semester: 2, class: "Computer Science" },
-    { name: "Professional Ethics", semester: 2, class: "Computer Science" },
+    { name: "ENGINEERING PHYSICS", semester: 2, class: "CSE" },
+    { name: "ENGINEERING GRAPHICS", semester: 2, class: "CSE" },
+    { name: "PROGRAMMING IN C", semester: 2, class: "CSE" },
+    { name: "ENGINEERING CHEMISTRY", semester: 2, class: "CSE" },
+    { name: "ENGINEERING MECHANICS", semester: 2, class: "CSE" },
+    { name: "PROFESSIONAL COMMUNICATION", semester: 2, class: "CSE" },
+    { name: "BASICS OF CIVIL & MECHANICAL", semester: 2, class: "CSE" },
+    { name: "BASICS OF ELECTRICAL & ELECTRONICS", semester: 2, class: "CSE" },
 
-    // Semester 3
-    { name: "Discrete Mathematics", semester: 3, class: "Computer Science" },
-    { name: "Data Structures", semester: 3, class: "Computer Science" },
-    {
-      name: "Object Oriented Programming",
-      semester: 3,
-      class: "Computer Science",
-    },
-    { name: "Digital Electronics", semester: 3, class: "Computer Science" },
+    // Semester 3 (S3)
+    { name: "DISCRETE MATHEMATICAL STRUCTURES", semester: 3, class: "CSE" },
+    { name: "OBJECT ORIENTED PROGRAMMING JAVA", semester: 3, class: "CSE" },
+    { name: "Data Structures", semester: 3, class: "CSE" },
+    { name: "Logic System Design", semester: 3, class: "CSE" },
+    { name: "Sustainable Engineering", semester: 3, class: "CSE" },
+    { name: "DESIGN & ENGINEERING", semester: 3, class: "CSE" },
 
-    // Semester 4
-    { name: "Signals and Systems", semester: 4, class: "Computer Science" },
-    { name: "Computer Organization", semester: 4, class: "Computer Science" },
-    { name: "Operating Systems", semester: 4, class: "Computer Science" },
-    {
-      name: "Design and Analysis of Algorithms",
-      semester: 4,
-      class: "Computer Science",
-    },
-    {
-      name: "Algorithm Analysis and design",
-      semester: 4,
-      class: "Computer Science",
-    },
+    // Semester 4 (S4)
+    { name: "COMPUTER ORGANISATION & ARCHITECTURE", semester: 4, class: "CSE" },
+    { name: "GRAPH THEORY", semester: 4, class: "CSE" },
+    { name: "DATABASE MANAGEMENT SYSTEMS", semester: 4, class: "CSE" },
+    { name: "OPERATING SYSTEMS", semester: 4, class: "CSE" },
+    { name: "CONSTITUTION OF INDIA", semester: 4, class: "CSE" },
+    { name: "PROFESSIONAL ETHICS", semester: 4, class: "CSE" },
 
-    // Semester 5
-    {
-      name: "Database Management Systems",
-      semester: 5,
-      class: "Computer Science",
-    },
-    { name: "Computer Networks", semester: 5, class: "Computer Science" },
-    { name: "Web Technologies", semester: 5, class: "Computer Science" },
-    {
-      name: "Computer graphics and image processing",
-      semester: 5,
-      class: "Computer Science",
-    },
-    { name: "Networking Lab", semester: 5, class: "Computer Science" },
+    // Semester 5 (S5)
+    { name: "FORMAL LANGUAGES & AUTOMATA THEORY", semester: 5, class: "CSE" },
+    { name: "MANAGEMENT OF SOFTWARE SYSTEMS", semester: 5, class: "CSE" },
+    { name: "MICROPROCESSORS AND MICROCONTROLLERS", semester: 5, class: "CSE" },
+    { name: "COMPUTER NETWORKS", semester: 5, class: "CSE" },
+    { name: "SYSTEM SOFTWARE", semester: 5, class: "CSE" },
+    { name: "DISASTER MANAGEMENT", semester: 5, class: "CSE" },
 
-    // Semester 6
-    { name: "Software Engineering", semester: 6, class: "Computer Science" },
-    { name: "Compiler Design", semester: 6, class: "Computer Science" },
-    {
-      name: "Microprocessors and Microcontrollers",
-      semester: 6,
-      class: "Computer Science",
-    },
-    { name: "Control Systems", semester: 6, class: "Computer Science" },
-    {
-      name: "Formal Languages and Automata Theory",
-      semester: 6,
-      class: "Computer Science",
-    },
-    {
-      name: "Industrial economics and foreign trade",
-      semester: 6,
-      class: "Computer Science",
-    },
-    { name: "Mini project", semester: 6, class: "Computer Science" },
+    // Semester 6 (S6)
+    { name: "COMPUTER GRAPHICS & IMAGE PROCESSING", semester: 6, class: "CSE" },
+    { name: "ALGORITHM ANALYSIS & DESIGN", semester: 6, class: "CSE" },
+    { name: "COMPILER DESIGN", semester: 6, class: "CSE" },
+    { name: "INDUSTRIAL ECONOMIC & FOREIGN TRADE", semester: 6, class: "CSE" },
 
-    // Semester 7
-    { name: "Artificial Intelligence", semester: 7, class: "Computer Science" },
-    { name: "Machine Learning", semester: 7, class: "Computer Science" },
-    { name: "Cloud Computing", semester: 7, class: "Computer Science" },
-    { name: "Cyber Security", semester: 7, class: "Computer Science" },
-    { name: "Data Mining", semester: 7, class: "Computer Science" },
-    { name: "Project Work Phase 1", semester: 7, class: "Computer Science" },
-    { name: "Seminar", semester: 7, class: "Computer Science" },
+    // Semester 7 (S7)
+    { name: "NATURAL LANGUAGE PROCESSING", semester: 7, class: "CSE" },
+    { name: "MACHINE LEARNING", semester: 7, class: "CSE" },
+    { name: "CLOUD COMPUTING", semester: 7, class: "CSE" },
+    { name: "ARTIFICIAL INTELLIGENCE", semester: 7, class: "CSE" },
+    { name: "WEB PROGRAMMING", semester: 7, class: "CSE" },
+    { name: "COMPUTER GRAPHICS", semester: 7, class: "CSE" },
 
-    // Semester 8
-    { name: "Big Data Analytics", semester: 8, class: "Computer Science" },
-    { name: "Internet of Things", semester: 8, class: "Computer Science" },
-    { name: "Distributed Systems", semester: 8, class: "Computer Science" },
-    { name: "Engineering Economics", semester: 8, class: "Computer Science" },
-    { name: "Project Work Phase 2", semester: 8, class: "Computer Science" },
-    { name: "Comprehensive viva", semester: 8, class: "Computer Science" },
+    // Semester 8 (S8)
+    { name: "DISTRIBUTED COMPUTING", semester: 8, class: "CSE" },
+    { name: "EMBEDDED SYSTEM", semester: 8, class: "CSE" },
+    { name: "INTERNET OF THINGS", semester: 8, class: "CSE" },
+    { name: "INDUSTRIAL SAFETY ENGINEERING", semester: 8, class: "CSE" },
   ];
+
   const insertSubject = db.prepare(
     "INSERT INTO subjects (name, semester, class) VALUES (?, ?, ?)",
   );
-  seedSubjects.forEach((s) => insertSubject.run(s.name, s.semester, s.class));
+  const classes = ["CSE", "SOE", "Data Science", "Artificial Intelligence"];
+
+  classes.forEach((c) => {
+    seedSubjects.forEach((s) => insertSubject.run(s.name, s.semester, c));
+  });
+  const timetableCount = db
+    .prepare("SELECT COUNT(*) as count FROM timetable")
+    .get().count;
+  if (timetableCount === 0) {
+    const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+    const times = [
+      "09:00 AM",
+      "10:00 AM",
+      "11:15 AM",
+      "12:15 PM",
+      "02:00 PM",
+      "03:00 PM",
+    ];
+    const insertTimetable = db.prepare(
+      "INSERT INTO timetable (class, semester, subject, teacher, day, time) VALUES (?, ?, ?, ?, ?, ?)",
+    );
+
+    classes.forEach((c) => {
+      for (let s = 1; s <= 8; s++) {
+        const classSubjects = seedSubjects.filter(
+          (sub) => sub.semester === s && sub.class === c,
+        );
+        if (classSubjects.length > 0) {
+          days.forEach((day) => {
+            // Add 3-4 subjects per day
+            for (let i = 0; i < 4; i++) {
+              const sub =
+                classSubjects[Math.floor(Math.random() * classSubjects.length)];
+              insertTimetable.run(c, s, sub.name, "Dr. Smith", day, times[i]);
+            }
+          });
+        }
+      }
+    });
+  }
+
+  // Seed Achievements
+  const studentCount = db
+    .prepare("SELECT COUNT(*) as count FROM students")
+    .get().count;
+  if (studentCount > 0) {
+    const achievementCount = db
+      .prepare("SELECT COUNT(*) as count FROM achievements")
+      .get().count;
+    if (achievementCount === 0) {
+      const students = db.prepare("SELECT id FROM students").all();
+      const insertAchievement = db.prepare(
+        "INSERT INTO achievements (student_id, title, description, icon) VALUES (?, ?, ?, ?)",
+      );
+
+      students.forEach((student) => {
+        insertAchievement.run(
+          student.id,
+          "First Step",
+          "Completed your first assignment!",
+          "Star",
+        );
+        insertAchievement.run(
+          student.id,
+          "Perfect Attendance",
+          "Maintained 100% attendance for a week",
+          "CheckCircle",
+        );
+        insertAchievement.run(
+          student.id,
+          "Quiz Master",
+          "Scored 100% on a quiz",
+          "Target",
+        );
+      });
+    }
+  }
 }
 
-app.use(express.json());
+app.use(express.json({
+  limit: "100mb",
+}));
+app.use(bodyParser.json({
+  limit: "100mb"
+}));
+app.use(express.urlencoded({ extended: true }));
 
 // Middleware
 const authenticateToken = (req, res, next) => {
@@ -356,6 +472,17 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+app.post(
+  "/api/upload",
+  authenticateToken,
+  upload.single("file"),
+  (req, res) => {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    const fileUrl = `/uploads/${req.file.filename}`;
+    res.json({ fileUrl });
+  },
+);
+
 // Auth Routes
 app.post("/api/auth/login", (req, res) => {
   const { username, password } = req.body;
@@ -365,6 +492,7 @@ app.post("/api/auth/login", (req, res) => {
   // Try Admin
   user = db.prepare("SELECT * FROM admins WHERE username = ?").get(username);
   if (user) detectedRole = "admin";
+  console.log(user, "user", username, password, req.body)
 
   // Try Teacher
   if (!user) {
@@ -430,7 +558,20 @@ app.get("/api/admin/teachers", authenticateToken, (req, res) => {
 
 app.delete("/api/admin/teachers/:id", authenticateToken, (req, res) => {
   if (req.user.role !== "admin") return res.sendStatus(403);
-  db.prepare("DELETE FROM teachers WHERE id = ?").run(req.params.id);
+  const teacherId = req.params.id;
+
+  const transaction = db.transaction(() => {
+    db.prepare("DELETE FROM teacher_subjects WHERE teacher_id = ?").run(
+      teacherId,
+    );
+    db.prepare("DELETE FROM marks WHERE teacher_id = ?").run(teacherId);
+    db.prepare("DELETE FROM assignments WHERE teacher_id = ?").run(teacherId);
+    db.prepare("DELETE FROM flashcards WHERE teacher_id = ?").run(teacherId);
+    db.prepare("DELETE FROM quizzes WHERE teacher_id = ?").run(teacherId);
+    db.prepare("DELETE FROM teachers WHERE id = ?").run(teacherId);
+  });
+
+  transaction();
   res.json({ success: true });
 });
 
@@ -537,7 +678,26 @@ app.get("/api/admin/students/:id", authenticateToken, (req, res) => {
 
 app.delete("/api/admin/students/:id", authenticateToken, (req, res) => {
   if (req.user.role !== "admin") return res.sendStatus(403);
-  db.prepare("DELETE FROM students WHERE id = ?").run(req.params.id);
+  const studentId = req.params.id;
+
+  const transaction = db.transaction(() => {
+    db.prepare("DELETE FROM marks WHERE student_id = ?").run(studentId);
+    db.prepare("DELETE FROM attendance WHERE student_id = ?").run(studentId);
+    db.prepare("DELETE FROM assignments WHERE student_id = ?").run(studentId);
+    db.prepare("DELETE FROM quiz_results WHERE student_id = ?").run(studentId);
+    db.prepare("DELETE FROM tasks WHERE student_id = ?").run(studentId);
+    db.prepare("DELETE FROM achievements WHERE student_id = ?").run(studentId);
+    db.prepare("DELETE FROM cgpa WHERE student_id = ?").run(studentId);
+    db.prepare("DELETE FROM verification_requests WHERE student_id = ?").run(
+      studentId,
+    );
+    db.prepare(
+      "DELETE FROM notifications WHERE user_id = ? AND role = 'student'",
+    ).run(studentId);
+    db.prepare("DELETE FROM students WHERE id = ?").run(studentId);
+  });
+
+  transaction();
   res.json({ success: true });
 });
 
@@ -711,21 +871,118 @@ app.post("/api/attendance", authenticateToken, (req, res) => {
   res.json({ success: true });
 });
 
+app.put("/api/attendance/:id", authenticateToken, (req, res) => {
+  if (req.user.role !== "teacher" && req.user.role !== "admin")
+    return res.sendStatus(403);
+  const { status, date } = req.body;
+  db.prepare("UPDATE attendance SET status = ?, date = ? WHERE id = ?").run(
+    status,
+    date,
+    req.params.id,
+  );
+  res.json({ success: true });
+});
+
+app.post("/api/attendance/check-in", authenticateToken, (req, res) => {
+  if (req.user.role !== "student") return res.sendStatus(403);
+  const { subject_id } = req.body;
+  const date = new Date().toISOString().split("T")[0];
+
+  // Check if already checked in today for this subject
+  const existing = db
+    .prepare(
+      "SELECT * FROM attendance WHERE student_id = ? AND subject_id = ? AND date = ?",
+    )
+    .get(req.user.id, subject_id, date);
+  if (existing) {
+    return res
+      .status(400)
+      .json({ message: "Already checked in for this subject today." });
+  }
+
+  db.prepare(
+    "INSERT INTO attendance (student_id, subject_id, date, status) VALUES (?, ?, ?, ?)",
+  ).run(req.user.id, subject_id, date, "Present");
+
+  // Add some points for attendance
+  db.prepare("UPDATE students SET points = points + 5 WHERE id = ?").run(
+    req.user.id,
+  );
+
+  res.json({ success: true });
+});
+
 // Subjects
 app.get("/api/subjects", authenticateToken, (req, res) => {
   const subjects = db.prepare("SELECT * FROM subjects").all();
   res.json(subjects);
 });
 
+app.post("/api/admin/subjects", authenticateToken, (req, res) => {
+  if (req.user.role !== "admin") return res.sendStatus(403);
+  const { name, semester, class: className } = req.body;
+  if (!name || !semester || !className) {
+    return res.status(400).json({ message: "Missing required fields" });
+  }
+  try {
+    const result = db
+      .prepare("INSERT INTO subjects (name, semester, class) VALUES (?, ?, ?)")
+      .run(name, semester, className);
+    res.json({ id: result.lastInsertRowid });
+  } catch (e) {
+    res.status(400).json({ message: e.message });
+  }
+});
+
+app.delete("/api/admin/subjects/:id", authenticateToken, (req, res) => {
+  if (req.user.role !== "admin") return res.sendStatus(403);
+  try {
+    db.prepare("DELETE FROM subjects WHERE id = ?").run(req.params.id);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(400).json({ message: e.message });
+  }
+});
+
 // Assignments
+app.get("/api/teacher/subjects", authenticateToken, (req, res) => {
+  if (req.user.role !== "teacher") return res.sendStatus(403);
+
+  // Get teacher's assigned class and semester
+  const teacher = db
+    .prepare(
+      "SELECT assignedClass, assignedSemester FROM teachers WHERE id = ?",
+    )
+    .get(req.user.id);
+
+  if (!teacher) return res.json([]);
+
+  // Return subjects that match the teacher's assigned class and semester
+  // OR subjects explicitly assigned to the teacher in teacher_subjects
+  const subjects = db
+    .prepare(
+      `
+    SELECT DISTINCT s.* 
+    FROM subjects s
+    LEFT JOIN teacher_subjects ts ON s.id = ts.subject_id
+    WHERE ts.teacher_id = ? 
+    OR (s.class = ? AND s.semester = ?)
+  `,
+    )
+    .all(req.user.id, teacher.assignedClass, teacher.assignedSemester);
+
+  res.json(subjects);
+});
+
 app.get("/api/teacher/assignments", authenticateToken, (req, res) => {
   if (req.user.role !== "teacher") return res.sendStatus(403);
   const assignments = db
     .prepare(
       `
-    SELECT a.*, s.name as student_name 
+    SELECT a.*, s.name as student_name, sub.name as subject_name
     FROM assignments a 
     JOIN students s ON a.student_id = s.id 
+    LEFT JOIN subjects sub ON a.subject_id = sub.id
     WHERE a.teacher_id = ?
   `,
     )
@@ -735,21 +992,12 @@ app.get("/api/teacher/assignments", authenticateToken, (req, res) => {
 
 app.put("/api/teacher/assignments/:id", authenticateToken, (req, res) => {
   if (req.user.role !== "teacher") return res.sendStatus(403);
-  const { title, marks, student_ids } = req.body;
+  const { title, marks, student_ids, subject_id, due_date, file_url } =
+    req.body;
   const assignmentId = req.params.id;
 
   try {
     const transaction = db.transaction(() => {
-      // Update the assignment title and marks (this is tricky because assignments are per student in this schema)
-      // Actually, the current schema stores one row per student per assignment title.
-      // To "edit" an assignment, we should probably update all rows with the same title/teacher or handle it differently.
-      // Given the current schema, let's update by ID for simple fields, but the user wants to edit the "list of students".
-
-      // Better approach for this schema: Delete old ones with same title/teacher and re-insert?
-      // Or just update the specific one.
-      // If the user wants to edit "the assignment", they likely think of it as one entity.
-
-      // Let's find the original title of this assignment ID
       const original = db
         .prepare(
           "SELECT title FROM assignments WHERE id = ? AND teacher_id = ?",
@@ -757,17 +1005,23 @@ app.put("/api/teacher/assignments/:id", authenticateToken, (req, res) => {
         .get(assignmentId, req.user.id);
       if (!original) throw new Error("Assignment not found");
 
-      // Delete all assignments with that title for this teacher
       db.prepare(
         "DELETE FROM assignments WHERE title = ? AND teacher_id = ?",
       ).run(original.title, req.user.id);
 
-      // Re-insert
       const insert = db.prepare(
-        "INSERT INTO assignments (teacher_id, student_id, title, marks) VALUES (?, ?, ?, ?)",
+        "INSERT INTO assignments (teacher_id, student_id, title, marks, subject_id, due_date, file_url) VALUES (?, ?, ?, ?, ?, ?, ?)",
       );
       for (const sid of student_ids) {
-        insert.run(req.user.id, sid, title, marks);
+        insert.run(
+          req.user.id,
+          sid,
+          title,
+          marks,
+          subject_id,
+          due_date,
+          file_url,
+        );
       }
     });
     transaction();
@@ -782,10 +1036,12 @@ app.get("/api/student/assignments", authenticateToken, (req, res) => {
   const assignments = db
     .prepare(
       `
-    SELECT a.*, t.name as teacher_name 
+    SELECT a.*, t.name as teacher_name, s.name as subject_name
     FROM assignments a 
     JOIN teachers t ON a.teacher_id = t.id 
+    LEFT JOIN subjects s ON a.subject_id = s.id
     WHERE a.student_id = ?
+    ORDER BY a.priority DESC, a.due_date ASC
   `,
     )
     .all(req.user.id);
@@ -794,10 +1050,11 @@ app.get("/api/student/assignments", authenticateToken, (req, res) => {
 
 app.post("/api/teacher/assignments", authenticateToken, (req, res) => {
   if (req.user.role !== "teacher") return res.sendStatus(403);
-  const { student_ids, title, marks } = req.body; // student_ids is an array
+  const { student_ids, title, marks, subject_id, due_date, file_url } =
+    req.body; // student_ids is an array
 
   const insert = db.prepare(
-    "INSERT INTO assignments (teacher_id, student_id, title, marks) VALUES (?, ?, ?, ?)",
+    "INSERT INTO assignments (teacher_id, student_id, title, marks, subject_id, due_date, file_url) VALUES (?, ?, ?, ?, ?, ?, ?)",
   );
   const notify = db.prepare(
     "INSERT INTO notifications (user_id, role, message) VALUES (?, 'student', ?)",
@@ -805,7 +1062,7 @@ app.post("/api/teacher/assignments", authenticateToken, (req, res) => {
 
   const transaction = db.transaction((ids) => {
     for (const id of ids) {
-      insert.run(req.user.id, id, title, marks);
+      insert.run(req.user.id, id, title, marks, subject_id, due_date, file_url);
       notify.run(id, `New assignment assigned: ${title}`);
     }
   });
@@ -813,6 +1070,64 @@ app.post("/api/teacher/assignments", authenticateToken, (req, res) => {
   transaction(student_ids);
   res.json({ success: true });
 });
+
+app.delete("/api/teacher/assignments/:id", authenticateToken, (req, res) => {
+  if (req.user.role !== "teacher") return res.sendStatus(403);
+  const assignmentId = req.params.id;
+
+  try {
+    const transaction = db.transaction(() => {
+      const original = db
+        .prepare(
+          "SELECT title FROM assignments WHERE id = ? AND teacher_id = ?",
+        )
+        .get(assignmentId, req.user.id);
+      if (!original) throw new Error("Assignment not found");
+      db.prepare(
+        "DELETE FROM assignments WHERE title = ? AND teacher_id = ?",
+      ).run(original.title, req.user.id);
+    });
+    transaction();
+    res.json({ success: true });
+  } catch (e) {
+    res.status(400).json({ message: e.message });
+  }
+});
+
+// Student Priority/Due Date Updates
+app.put(
+  "/api/student/assignments/:id/priority",
+  authenticateToken,
+  (req, res) => {
+    if (req.user.role !== "student") return res.sendStatus(403);
+    const { priority, due_date } = req.body;
+    db.prepare(
+      "UPDATE assignments SET priority = ?, due_date = ? WHERE id = ? AND student_id = ?",
+    ).run(priority, due_date, req.params.id, req.user.id);
+    res.json({ success: true });
+  },
+);
+
+app.put("/api/student/tasks/:id/priority", authenticateToken, (req, res) => {
+  if (req.user.role !== "student") return res.sendStatus(403);
+  const { priority, due_date } = req.body;
+  db.prepare(
+    "UPDATE tasks SET priority = ?, due_date = ? WHERE id = ? AND student_id = ?",
+  ).run(priority, due_date, req.params.id, req.user.id);
+  res.json({ success: true });
+});
+
+app.post(
+  "/api/student/assignments/:id/complete",
+  authenticateToken,
+  (req, res) => {
+    if (req.user.role !== "student") return res.sendStatus(403);
+    db.prepare(
+      "UPDATE assignments SET is_completed = 1 WHERE id = ? AND student_id = ?",
+    ).run(req.params.id, req.user.id);
+    res.json({ success: true });
+  },
+);
 
 // Timetable
 app.get("/api/timetable", authenticateToken, (req, res) => {
@@ -1015,33 +1330,42 @@ app.get("/api/quizzes", authenticateToken, (req, res) => {
 });
 
 app.post("/api/quizzes", authenticateToken, (req, res) => {
-  if (req.user.role !== "teacher") {
-    return res.sendStatus(403);
-  }
-
+  if (req.user.role !== "teacher") return res.sendStatus(403);
   const { subject_id, title, questions } = req.body;
+  db.prepare(
+    "INSERT INTO quizzes (teacher_id, subject_id, title, questions) VALUES (?, ?, ?, ?)",
+  ).run(req.user.id, subject_id, title, JSON.stringify(questions));
+  res.json({ success: true });
+});
 
-  const teacher = db
-    .prepare("SELECT id FROM teachers WHERE id = ?")
-    .get(req.user.id);
+app.put("/api/quizzes/:id", authenticateToken, (req, res) => {
+  if (req.user.role !== "teacher") return res.sendStatus(403);
+  const { subject_id, title, questions } = req.body;
+  db.prepare(
+    "UPDATE quizzes SET subject_id = ?, title = ?, questions = ? WHERE id = ? AND teacher_id = ?",
+  ).run(
+    subject_id,
+    title,
+    JSON.stringify(questions),
+    req.params.id,
+    req.user.id,
+  );
+  res.json({ success: true });
+});
 
-  if (!teacher) {
-    return res.status(400).json({ error: "Teacher not found" });
-  }
+app.delete("/api/quizzes/:id", authenticateToken, (req, res) => {
+  if (req.user.role !== "teacher") return res.sendStatus(403);
+  const quizId = req.params.id;
 
-  const subject = db
-    .prepare("SELECT id FROM subjects WHERE id = ?")
-    .get(subject_id);
+  const transaction = db.transaction(() => {
+    db.prepare("DELETE FROM quiz_results WHERE quiz_id = ?").run(quizId);
+    db.prepare("DELETE FROM quizzes WHERE id = ? AND teacher_id = ?").run(
+      quizId,
+      req.user.id,
+    );
+  });
 
-  if (!subject) {
-    return res.status(400).json({ error: "Subject not found" });
-  }
-
-  db.prepare(`
-    INSERT INTO quizzes (teacher_id, subject_id, title, questions)
-    VALUES (?, ?, ?, ?)
-  `).run(req.user.id, subject_id, title, JSON.stringify(questions));
-
+  transaction();
   res.json({ success: true });
 });
 
@@ -1090,7 +1414,9 @@ app.post("/api/quizzes/:id/submit", authenticateToken, (req, res) => {
 // Tasks
 app.get("/api/tasks", authenticateToken, (req, res) => {
   const tasks = db
-    .prepare("SELECT * FROM tasks WHERE student_id = ?")
+    .prepare(
+      "SELECT * FROM tasks WHERE student_id = ? ORDER BY priority DESC, due_date ASC",
+    )
     .all(req.user.id);
   res.json(tasks);
 });
@@ -1151,6 +1477,24 @@ app.post("/api/flashcards", authenticateToken, (req, res) => {
   res.json({ success: true });
 });
 
+app.put("/api/flashcards/:id", authenticateToken, (req, res) => {
+  if (req.user.role !== "teacher") return res.sendStatus(403);
+  const { subject_id, question, answer } = req.body;
+  db.prepare(
+    "UPDATE flashcards SET subject_id = ?, question = ?, answer = ? WHERE id = ? AND teacher_id = ?",
+  ).run(subject_id, question, answer, req.params.id, req.user.id);
+  res.json({ success: true });
+});
+
+app.delete("/api/flashcards/:id", authenticateToken, (req, res) => {
+  if (req.user.role !== "teacher") return res.sendStatus(403);
+  db.prepare("DELETE FROM flashcards WHERE id = ? AND teacher_id = ?").run(
+    req.params.id,
+    req.user.id,
+  );
+  res.json({ success: true });
+});
+
 // Achievements
 app.get("/api/achievements", authenticateToken, (req, res) => {
   const achievements = db
@@ -1164,7 +1508,7 @@ app.get("/api/analytics/student/:id", authenticateToken, (req, res) => {
   const studentId = req.params.id;
   const marks = db
     .prepare(
-      "SELECT m.marks, s.name as subject FROM marks m JOIN subjects s ON m.subject_id = s.id WHERE m.student_id = ?",
+      "SELECT m.marks, s.name as subject, m.subject_id FROM marks m JOIN subjects s ON m.subject_id = s.id WHERE m.student_id = ?",
     )
     .all(studentId);
   const attendance = db
@@ -1207,6 +1551,41 @@ app.get("/api/analytics/student/:id", authenticateToken, (req, res) => {
   });
 });
 
+app.get("/api/teacher/analytics/assignments", authenticateToken, (req, res) => {
+  if (req.user.role !== "teacher") return res.sendStatus(403);
+  const analytics = db
+    .prepare(
+      `
+    SELECT a.title, a.is_completed, a.due_date, s.name as student_name, sub.name as subject_name
+    FROM assignments a
+    JOIN students s ON a.student_id = s.id
+    JOIN subjects sub ON a.subject_id = sub.id
+    WHERE a.teacher_id = ?
+    ORDER BY a.due_date DESC
+  `,
+    )
+    .all(req.user.id);
+  res.json(analytics);
+});
+
+app.get("/api/teacher/analytics/quizzes", authenticateToken, (req, res) => {
+  if (req.user.role !== "teacher") return res.sendStatus(403);
+  const analytics = db
+    .prepare(
+      `
+    SELECT q.title, qr.score, qr.total, qr.completed_at, s.name as student_name, sub.name as subject_name
+    FROM quiz_results qr
+    JOIN quizzes q ON qr.quiz_id = q.id
+    JOIN students s ON qr.student_id = s.id
+    JOIN subjects sub ON q.subject_id = sub.id
+    WHERE q.teacher_id = ?
+    ORDER BY qr.completed_at DESC
+  `,
+    )
+    .all(req.user.id);
+  res.json(analytics);
+});
+
 // Notifications
 app.get("/api/notifications", authenticateToken, (req, res) => {
   const notifications = db
@@ -1242,6 +1621,9 @@ app.post("/api/notifications/broadcast", authenticateToken, (req, res) => {
 app.use("/api/*", (req, res) => {
   res.status(404).json({ message: `API route ${req.originalUrl} not found` });
 });
+
+// Serve uploads directory
+app.use("/uploads", express.static(uploadDir));
 
 // Vite middleware for development
 if (process.env.NODE_ENV !== "production") {

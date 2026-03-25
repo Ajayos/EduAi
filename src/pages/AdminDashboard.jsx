@@ -12,17 +12,18 @@ import {
   Sparkles,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import ConfirmationModal from "../components/ConfirmationModal";
 
-export default function AdminDashboard({
-  initialTab,
-  autoOpenAddModal,
-}) {
-  const [activeSubTab, setActiveSubTab] = useState(initialTab || "faculty");
+export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
+  const [activeSubTab, setActiveSubTab] =
+    (useState(initialTab || "faculty"));
   const [teachers, setTeachers] = useState([]);
   const [students, setStudents] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
   const [studentDetails, setStudentDetails] = useState(null);
   const [subjects, setSubjects] = useState([]);
@@ -46,22 +47,28 @@ export default function AdminDashboard({
     username: "",
     password: "",
     isClassTeacher: false,
-    assignedClass: "Computer Science",
+    assignedClass: "CSE",
     assignedSemester: 1,
   });
   const [newStudent, setNewStudent] = useState({
     name: "",
     username: "",
     password: "",
-    class: "Computer Science",
+    class: "CSE",
     semester: 1,
+  });
+  const [newSubject, setNewSubject] = useState({
+    name: "",
+    semester: 1,
+    class: "CSE",
   });
   const [broadcastMessage, setBroadcastMessage] = useState("");
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [latestNotification, setLatestNotification] = useState(null);
 
   const classes = [
-    "Computer Science",
+    "CSE",
+    "SOE",
     "Data Science",
     "Artificial Intelligence",
     "Electrical",
@@ -223,16 +230,42 @@ export default function AdminDashboard({
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this account?"))
-      return;
+  const handleAddSubject = async (e) => {
+    e.preventDefault();
+    setError("");
     try {
-      if (activeSubTab === "faculty") await api.deleteTeacher(id);
-      else await api.deleteStudent(id);
-      activeSubTab === "faculty" ? fetchTeachers() : fetchStudents();
+      await api.createSubject(newSubject);
+      setShowAddModal(false);
+      setNewSubject({ name: "", semester: 1, class: "Computer Science" });
+      fetchSubjects();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!itemToDelete) return;
+    try {
+      if (activeSubTab === "faculty") await api.deleteTeacher(itemToDelete.id);
+      else if (activeSubTab === "students")
+        await api.deleteStudent(itemToDelete.id);
+      else if (activeSubTab === "subjects")
+        await api.deleteSubject(itemToDelete.id);
+
+      if (activeSubTab === "faculty") fetchTeachers();
+      else if (activeSubTab === "students") fetchStudents();
+      else if (activeSubTab === "subjects") fetchSubjects();
+
+      setItemToDelete(null);
+      setShowDeleteConfirm(false);
     } catch (err) {
       alert(err.message);
     }
+  };
+
+  const confirmDelete = (item) => {
+    setItemToDelete(item);
+    setShowDeleteConfirm(true);
   };
 
   const handleViewDetails = async (student) => {
@@ -325,6 +358,12 @@ export default function AdminDashboard({
         >
           Broadcast Announcement
         </button>
+        <button
+          onClick={() => setActiveSubTab("subjects")}
+          className={`px-6 py-3 font-bold transition-all border-b-2 ${activeSubTab === "subjects" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}
+        >
+          Subject Manager
+        </button>
       </div>
 
       {activeSubTab === "broadcast" ? (
@@ -373,6 +412,56 @@ export default function AdminDashboard({
               )}
             </button>
           </form>
+        </div>
+      ) : activeSubTab === "subjects" ? (
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <table className="w-full text-left">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="px-6 py-4 text-sm font-bold text-slate-600">
+                  Subject Name
+                </th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-600">
+                  Class
+                </th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-600">
+                  Semester
+                </th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-600">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {subjects.map((subject) => (
+                <tr
+                  key={subject.id}
+                  className="hover:bg-slate-50 transition-all"
+                >
+                  <td className="px-6 py-4 font-semibold text-slate-900">
+                    {subject.name}
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold uppercase">
+                      {subject.class}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-slate-600">
+                    Sem {subject.semester}
+                  </td>
+                  <td className="px-6 py-4">
+                    <button
+                      onClick={() => confirmDelete(subject)}
+                      className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                      title="Delete Subject"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       ) : activeSubTab === "faculty" ? (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
@@ -435,7 +524,7 @@ export default function AdminDashboard({
                         <Search size={20} />
                       </button>
                       <button
-                        onClick={() => handleDelete(teacher.id)}
+                        onClick={() => confirmDelete(teacher)}
                         className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
                       >
                         <Trash2 size={20} />
@@ -506,7 +595,7 @@ export default function AdminDashboard({
                         <MoreVertical size={20} />
                       </button>
                       <button
-                        onClick={() => handleDelete(student.id)}
+                        onClick={() => confirmDelete(student)}
                         className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
                         title="Delete Account"
                       >
@@ -546,118 +635,239 @@ export default function AdminDashboard({
 
             <form
               onSubmit={
-                activeSubTab === "faculty" ? handleAddTeacher : handleAddStudent
+                activeSubTab === "faculty"
+                  ? handleAddTeacher
+                  : activeSubTab === "students"
+                    ? handleAddStudent
+                    : handleAddSubject
               }
               className="space-y-4"
             >
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
-                  value={
-                    activeSubTab === "faculty"
-                      ? newTeacher.name
-                      : newStudent.name
-                  }
-                  onChange={(e) =>
-                    activeSubTab === "faculty"
-                      ? setNewTeacher({ ...newTeacher, name: e.target.value })
-                      : setNewStudent({ ...newStudent, name: e.target.value })
-                  }
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Username
-                </label>
-                <input
-                  type="text"
-                  required
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
-                  value={
-                    activeSubTab === "faculty"
-                      ? newTeacher.username
-                      : newStudent.username
-                  }
-                  onChange={(e) =>
-                    activeSubTab === "faculty"
-                      ? setNewTeacher({
-                          ...newTeacher,
-                          username: e.target.value,
-                        })
-                      : setNewStudent({
-                          ...newStudent,
-                          username: e.target.value,
-                        })
-                  }
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  required
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
-                  value={
-                    activeSubTab === "faculty"
-                      ? newTeacher.password
-                      : newStudent.password
-                  }
-                  onChange={(e) =>
-                    activeSubTab === "faculty"
-                      ? setNewTeacher({
-                          ...newTeacher,
-                          password: e.target.value,
-                        })
-                      : setNewStudent({
-                          ...newStudent,
-                          password: e.target.value,
-                        })
-                  }
-                />
-              </div>
-
-              {activeSubTab === "faculty" ? (
+              {activeSubTab === "subjects" ? (
                 <>
-                  <div className="flex items-center gap-2 py-2">
-                    <input
-                      type="checkbox"
-                      id="isClassTeacher"
-                      checked={newTeacher.isClassTeacher}
-                      onChange={(e) =>
-                        setNewTeacher({
-                          ...newTeacher,
-                          isClassTeacher: e.target.checked,
-                        })
-                      }
-                      className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <label
-                      htmlFor="isClassTeacher"
-                      className="text-sm font-medium text-slate-700"
-                    >
-                      Assign as Class Teacher
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Subject Name
                     </label>
+                    <input
+                      type="text"
+                      required
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                      value={newSubject.name}
+                      onChange={(e) =>
+                        setNewSubject({ ...newSubject, name: e.target.value })
+                      }
+                      placeholder="e.g. Advanced Mathematics"
+                    />
                   </div>
-                  {newTeacher.isClassTeacher && (
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                          Assigned Class
-                        </label>
-                        <select
-                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
-                          value={newTeacher.assignedClass}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Class
+                      </label>
+                      <select
+                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                        value={newSubject.class}
+                        onChange={(e) =>
+                          setNewSubject({
+                            ...newSubject,
+                            class: e.target.value,
+                          })
+                        }
+                      >
+                        {classes.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Semester
+                      </label>
+                      <select
+                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                        value={newSubject.semester}
+                        onChange={(e) =>
+                          setNewSubject({
+                            ...newSubject,
+                            semester: parseInt(e.target.value),
+                          })
+                        }
+                      >
+                        {semesters.map((s) => (
+                          <option key={s} value={s}>
+                            Sem {s}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Full Name
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                      value={
+                        activeSubTab === "faculty"
+                          ? newTeacher.name
+                          : newStudent.name
+                      }
+                      onChange={(e) =>
+                        activeSubTab === "faculty"
+                          ? setNewTeacher({
+                              ...newTeacher,
+                              name: e.target.value,
+                            })
+                          : setNewStudent({
+                              ...newStudent,
+                              name: e.target.value,
+                            })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Username
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                      value={
+                        activeSubTab === "faculty"
+                          ? newTeacher.username
+                          : newStudent.username
+                      }
+                      onChange={(e) =>
+                        activeSubTab === "faculty"
+                          ? setNewTeacher({
+                              ...newTeacher,
+                              username: e.target.value,
+                            })
+                          : setNewStudent({
+                              ...newStudent,
+                              username: e.target.value,
+                            })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                      value={
+                        activeSubTab === "faculty"
+                          ? newTeacher.password
+                          : newStudent.password
+                      }
+                      onChange={(e) =>
+                        activeSubTab === "faculty"
+                          ? setNewTeacher({
+                              ...newTeacher,
+                              password: e.target.value,
+                            })
+                          : setNewStudent({
+                              ...newStudent,
+                              password: e.target.value,
+                            })
+                      }
+                    />
+                  </div>
+
+                  {activeSubTab === "faculty" ? (
+                    <>
+                      <div className="flex items-center gap-2 py-2">
+                        <input
+                          type="checkbox"
+                          id="isClassTeacher"
+                          checked={newTeacher.isClassTeacher}
                           onChange={(e) =>
                             setNewTeacher({
                               ...newTeacher,
-                              assignedClass: e.target.value,
+                              isClassTeacher: e.target.checked,
+                            })
+                          }
+                          className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <label
+                          htmlFor="isClassTeacher"
+                          className="text-sm font-medium text-slate-700"
+                        >
+                          Assign as Class Teacher
+                        </label>
+                      </div>
+                      {newTeacher.isClassTeacher && (
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                              Assigned Class
+                            </label>
+                            <select
+                              className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                              value={newTeacher.assignedClass}
+                              onChange={(e) =>
+                                setNewTeacher({
+                                  ...newTeacher,
+                                  assignedClass: e.target.value,
+                                })
+                              }
+                            >
+                              {classes.map((c) => (
+                                <option key={c} value={c}>
+                                  {c}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                              Semester
+                            </label>
+                            <select
+                              className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                              value={newTeacher.assignedSemester}
+                              onChange={(e) =>
+                                setNewTeacher({
+                                  ...newTeacher,
+                                  assignedSemester: parseInt(e.target.value),
+                                })
+                              }
+                            >
+                              {semesters.map((s) => (
+                                <option key={s} value={s}>
+                                  Sem {s}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                          Class
+                        </label>
+                        <select
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                          value={newStudent.class}
+                          onChange={(e) =>
+                            setNewStudent({
+                              ...newStudent,
+                              class: e.target.value,
                             })
                           }
                         >
@@ -674,11 +884,11 @@ export default function AdminDashboard({
                         </label>
                         <select
                           className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
-                          value={newTeacher.assignedSemester}
+                          value={newStudent.semester}
                           onChange={(e) =>
-                            setNewTeacher({
-                              ...newTeacher,
-                              assignedSemester: parseInt(e.target.value),
+                            setNewStudent({
+                              ...newStudent,
+                              semester: parseInt(e.target.value),
                             })
                           }
                         >
@@ -692,48 +902,6 @@ export default function AdminDashboard({
                     </div>
                   )}
                 </>
-              ) : (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Class
-                    </label>
-                    <select
-                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
-                      value={newStudent.class}
-                      onChange={(e) =>
-                        setNewStudent({ ...newStudent, class: e.target.value })
-                      }
-                    >
-                      {classes.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Semester
-                    </label>
-                    <select
-                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
-                      value={newStudent.semester}
-                      onChange={(e) =>
-                        setNewStudent({
-                          ...newStudent,
-                          semester: parseInt(e.target.value),
-                        })
-                      }
-                    >
-                      {semesters.map((s) => (
-                        <option key={s} value={s}>
-                          Sem {s}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
               )}
 
               {error && <p className="text-red-500 text-sm">{error}</p>}
@@ -744,7 +912,9 @@ export default function AdminDashboard({
               >
                 {activeSubTab === "faculty"
                   ? "Create Faculty Account"
-                  : "Create Student Account"}
+                  : activeSubTab === "students"
+                    ? "Create Student Account"
+                    : "Add Subject"}
               </button>
             </form>
           </motion.div>
@@ -1289,6 +1459,19 @@ export default function AdminDashboard({
           </motion.div>
         </div>
       )}
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showDeleteConfirm}
+        onClose={() => {
+          setShowDeleteConfirm(false);
+          setItemToDelete(null);
+        }}
+        onConfirm={handleDelete}
+        title="Delete Account?"
+        message={`Are you sure you want to delete ${itemToDelete?.name}'s account? This action cannot be undone and will remove all associated data.`}
+        confirmText="Delete Account"
+        type="danger"
+      />
     </div>
   );
 }

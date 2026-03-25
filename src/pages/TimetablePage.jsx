@@ -43,6 +43,12 @@ export default function TimetablePage() {
   ];
 
   useEffect(() => {
+    if (user?.role === "student") {
+      setFilters({ class: user.class, semester: user.semester });
+    }
+  }, [user]);
+
+  useEffect(() => {
     fetchTimetable();
   }, [filters]);
 
