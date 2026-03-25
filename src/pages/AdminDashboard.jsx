@@ -10,6 +10,7 @@ import {
   X,
   Bell,
   Sparkles,
+  BookOpen
 } from "lucide-react";
 import { motion } from "framer-motion";
 import ConfirmationModal from "../components/ConfirmationModal";
