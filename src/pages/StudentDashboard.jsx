@@ -161,15 +161,33 @@ export default function StudentDashboard({ setActiveTab }) {
   };
 
   const handleUpdateProfile = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     try {
       if (api.updateStudentProfile) {
         await api.updateStudentProfile(profileData);
         updateUser(profileData);
       }
-      alert("Profile updated successfully!");
+      if (e) alert("Profile updated successfully!");
     } catch (err) {
-      alert("Failed to update profile: " + err.message);
+      if (e) alert("Failed to update profile: " + err.message);
+    }
+  };
+
+  const handleToggleProblemSubject = async (subject) => {
+    const current = profileData.problemSubjects || [];
+    let updated;
+    if (current.includes(subject)) {
+      updated = current.filter((s) => s !== subject);
+    } else {
+      updated = [...current, subject];
+    }
+    const newProfileData = { ...profileData, problemSubjects: updated };
+    setProfileData(newProfileData);
+    try {
+      await api.updateStudentProfile(newProfileData);
+      updateUser(newProfileData);
+    } catch (err) {
+      console.error("Failed to update problem subjects", err);
     }
   };
 
@@ -434,19 +452,11 @@ export default function StudentDashboard({ setActiveTab }) {
 
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Subjects you have difficulty with</label>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {analytics.marks.map((m) => (
+                <div className="flex flex-wrap gap-2 mt-2">                  {analytics.marks.map((m) => (
                     <button
                       key={m.subject_id}
                       type="button"
-                      onClick={() => {
-                        const current = profileData.problemSubjects || [];
-                        if (current.includes(m.subject)) {
-                          setProfileData({ ...profileData, problemSubjects: current.filter(s => s !== m.subject) });
-                        } else {
-                          setProfileData({ ...profileData, problemSubjects: [...current, m.subject] });
-                        }
-                      }}
+                      onClick={() => handleToggleProblemSubject(m.subject)}
                       className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
                         (profileData.problemSubjects || []).includes(m.subject)
                           ? "bg-red-500 text-white shadow-lg shadow-red-100"
@@ -455,34 +465,25 @@ export default function StudentDashboard({ setActiveTab }) {
                     >
                       {m.subject}
                     </button>
-                  ))}
-                </div>
+                  ))}</div>
               </div>
             </div>
 
-            {profileData.problemSubjects?.length > 0 && (
+            {analytics.problem_subjects_advice?.length > 0 && (
               <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-8 rounded-[2.5rem] text-white shadow-xl shadow-indigo-100">
                 <div className="flex items-center gap-3 mb-6">
                   <Sparkles className="text-yellow-300" />
                   <h4 className="text-xl font-black">AI Academic Advisor</h4>
                 </div>
                 <div className="space-y-6">
-                  {profileData.problemSubjects.map((subject) => {
-                    const advice = [
-                      "Based on your current performance and the syllabus complexity, I recommend dedicating at least 45 minutes daily to focused practice. Focus specifically on the foundational concepts before moving to advanced topics, as the current module builds heavily on previous ones.",
-                      "To master this subject, try implementing the 'Feynman Technique' where you explain concepts to yourself out loud. Your recent quiz results suggest that visual aids and diagrams might help you grasp the abstract theories more effectively than rote memorization.",
-                      "I've noticed a slight delay in your assignment submissions for this area. It might be beneficial to join a peer study group or schedule a one-on-one session with your professor to clarify any lingering doubts that might be slowing down your progress.",
-                    ][Math.floor(Math.random() * 3)];
-                    
-                    return (
-                      <div key={subject} className="bg-white/10 backdrop-blur-md rounded-3xl p-6 border border-white/20">
-                        <p className="text-xs font-black text-indigo-200 uppercase tracking-[0.2em] mb-2">{subject}</p>
-                        <p className="text-sm leading-relaxed text-indigo-50 font-medium">
-                          {advice}
-                        </p>
-                      </div>
-                    );
-                  })}
+                  {analytics.problem_subjects_advice.map((item) => (
+                    <div key={item.subject} className="bg-white/10 backdrop-blur-md rounded-3xl p-6 border border-white/20">
+                      <p className="text-xs font-black text-indigo-200 uppercase tracking-[0.2em] mb-2">{item.subject}</p>
+                      <p className="text-sm leading-relaxed text-indigo-50 font-medium">
+                        {item.advice}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -1004,9 +1005,14 @@ export default function StudentDashboard({ setActiveTab }) {
                   <p className="text-xs font-bold text-slate-400 uppercase mb-2">
                     Attendance
                   </p>
-                  <p className="text-3xl font-black text-slate-900">92%</p>
+                  <p className="text-3xl font-black text-slate-900">{selectedSubject.attendance || 0}%</p>
                   <div className="mt-2 w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                    <div className="bg-emerald-500 h-full w-[92%]"></div>
+                    <div 
+                      className={`h-full transition-all duration-1000 ${
+                        (selectedSubject.attendance || 0) < 75 ? "bg-red-500" : "bg-emerald-500"
+                      }`}
+                      style={{ width: `${selectedSubject.attendance || 0}%` }}
+                    ></div>
                   </div>
                 </div>
                 <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
@@ -1026,11 +1032,23 @@ export default function StudentDashboard({ setActiveTab }) {
                     Prediction
                   </p>
                   <p
-                    className={`text-3xl font-black ${selectedSubject.marks >= 75 ? "text-emerald-600" : "text-blue-600"}`}
+                    className={`text-3xl font-black ${
+                      selectedSubject.marks >= 85
+                        ? "text-emerald-600"
+                        : selectedSubject.marks >= 70
+                          ? "text-blue-600"
+                          : selectedSubject.marks >= 50
+                            ? "text-orange-500"
+                            : "text-red-600"
+                    }`}
                   >
-                    {selectedSubject.marks >= 75
-                      ? "Distinction"
-                      : "First Class"}
+                    {selectedSubject.marks >= 85
+                      ? "Excellent"
+                      : selectedSubject.marks >= 70
+                        ? "Good"
+                        : selectedSubject.marks >= 50
+                          ? "Needs Improvement"
+                          : "At Risk"}
                   </p>
                 </div>
               </div>
@@ -1064,20 +1082,40 @@ export default function StudentDashboard({ setActiveTab }) {
                     AI Improvement Tips
                   </h4>
                   <ul className="space-y-4">
-                    <li className="flex gap-3">
-                      <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full mt-2 shrink-0"></div>
-                      <p className="text-sm opacity-80">
-                        Focus on the "Graph Theory" module, your quiz scores
-                        were slightly lower there.
-                      </p>
-                    </li>
-                    <li className="flex gap-3">
-                      <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full mt-2 shrink-0"></div>
-                      <p className="text-sm opacity-80">
-                        Complete 2 more flashcard sets this week to boost your
-                        memory retention.
-                      </p>
-                    </li>
+                    {/* Targeted AI Tips for specific subjects */}
+                    {(analytics.subject_tips?.find((t) => t.subject === selectedSubject.subject)?.tips || []).length > 0 ? (
+                      analytics.subject_tips
+                        .find((t) => t.subject === selectedSubject.subject)
+                        .tips.map((tip, idx) => (
+                          <li key={idx} className="flex gap-3">
+                            <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full mt-2 shrink-0"></div>
+                            <p className="text-sm opacity-90 leading-relaxed font-medium">
+                              {tip}
+                            </p>
+                          </li>
+                        ))
+                    ) : (
+                      <>
+                        <li className="flex gap-3">
+                          <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full mt-2 shrink-0"></div>
+                          <p className="text-sm opacity-80 font-medium">
+                            {selectedSubject.marks >= 85
+                              ? "You've mastered this subject! Consider exploring advanced topics or helping peers."
+                              : selectedSubject.marks >= 50
+                                ? "Solid work. Review the recent assignment feedback to target specific weak points."
+                                : "Urgent: Review the core modules again. Your current grasp of the material is below the safety threshold."}
+                          </p>
+                        </li>
+                        <li className="flex gap-3">
+                          <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full mt-2 shrink-0"></div>
+                          <p className="text-sm opacity-80 font-medium">
+                            {analytics.attendanceRate < 75
+                              ? "Warning: Your low attendance in this subject is directly impacting your predictive success rate."
+                              : "Your consistency is your strength. Keep attending lectures to stay ahead of the curve."}
+                          </p>
+                        </li>
+                      </>
+                    )}
                   </ul>
                 </div>
               </div>
@@ -1131,17 +1169,78 @@ export default function StudentDashboard({ setActiveTab }) {
                 <p className="text-sm font-medium opacity-80 mb-1">
                   Recommendation
                 </p>
-                <p className="text-md">
-                  {analytics.attendanceRate < 75
+                <p className="text-md whitespace-pre-line leading-relaxed italic">
+                  "{analytics.recommendation || (analytics.attendanceRate < 75
                     ? "Focus on improving your attendance to avoid warning levels."
-                    : "Maintain your current consistency. You're on the right track!"}
+                    : "Maintain your current consistency. You're on the right track!")}"
                 </p>
               </div>
+
+              {analytics.lowestSubject && analytics.lowestSubject.marks < 75 && (
+                <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/20 flex items-center gap-4 group hover:bg-white/20 transition-all cursor-default">
+                  <div className="p-3 bg-red-500/20 text-red-200 rounded-xl">
+                    <AlertTriangle size={24} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-red-300 uppercase tracking-widest mb-1">Critical Insight</p>
+                    <p className="text-sm font-bold">
+                      Your lowest score is in <span className="text-red-300">{analytics.lowestSubject.subject}</span> ({analytics.lowestSubject.marks}%)
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {analytics.problem_subjects_advice?.length > 0 && (
+                <div className="mt-8 pt-8 border-t border-white/10 space-y-4">
+                  <h4 className="text-sm font-bold uppercase tracking-wider text-blue-200 flex items-center gap-2">
+                    <AlertTriangle size={16} />
+                    Subject Support
+                  </h4>
+                  {analytics.problem_subjects_advice.map((item, idx) => (
+                    <div key={idx} className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/20">
+                      <p className="text-xs font-bold text-blue-300 mb-1">{item.subject}</p>
+                      <p className="text-sm opacity-90 leading-relaxed italic">"{item.advice}"</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
         </div>
       </div>
+
+      {activeSubTab === "Overview" && (
+        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between mb-6">
+             <div className="flex items-center gap-3">
+              <div className="p-2 bg-pink-50 text-pink-600 rounded-xl">
+                <AlertTriangle size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-slate-900">Subject Weaknesses</h3>
+                <p className="text-xs text-slate-500">Select subjects you find challenging for AI support</p>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {analytics.marks.map((m) => (
+              <button
+                key={m.subject_id}
+                onClick={() => handleToggleProblemSubject(m.subject)}
+                className={`px-6 py-3 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 ${
+                  (profileData.problemSubjects || []).includes(m.subject)
+                    ? "bg-red-500 text-white shadow-lg shadow-red-100"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200"
+                }`}
+              >
+                {m.subject}
+                {(profileData.problemSubjects || []).includes(m.subject) && <CheckCircle size={14} />}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Assignments Section */}
       <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">

@@ -1640,6 +1640,25 @@ app.get("/api/analytics/student/:id", authenticateToken, (req, res) => {
       "SELECT m.marks, s.name as subject, m.subject_id FROM marks m JOIN subjects s ON m.subject_id = s.id WHERE m.student_id = ?",
     )
     .all(studentId);
+
+  // Calculate subject-wise attendance
+  const subjectWiseAttendance = db
+    .prepare(
+      `
+      SELECT subject_id, 
+             COUNT(*) as total,
+             SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present
+      FROM attendance 
+      WHERE student_id = ?
+      GROUP BY subject_id
+    `,
+    )
+    .all(studentId);
+
+  marks.forEach((m) => {
+    const att = subjectWiseAttendance.find((a) => a.subject_id === m.subject_id);
+    m.attendance = att ? Math.round((att.present / att.total) * 100) : 100;
+  });
   const attendance = db
     .prepare("SELECT status FROM attendance WHERE student_id = ?")
     .all(studentId);
@@ -1664,12 +1683,230 @@ app.get("/api/analytics/student/:id", authenticateToken, (req, res) => {
   // Prediction Logic
   const latestCgpa = cgpas.length > 0 ? cgpas[cgpas.length - 1].cgpa : 0;
   const performanceScore =
-    latestCgpa * 10 * 0.4 + attendanceRate * 0.2 + avgMarks * 0.3 + 70 * 0.1; // Assuming 70 for assignments if none
+    latestCgpa * 10 * 0.4 + attendanceRate * 0.2 + avgMarks * 0.3 + 70 * 0.1;
 
   let prediction = "At Risk";
   if (performanceScore >= 85) prediction = "Excellent";
   else if (performanceScore >= 70) prediction = "Good";
   else if (performanceScore >= 50) prediction = "Needs Improvement";
+
+  // Diverse AI Insights Pool (>50 items randomized)
+  const insightsPool = {
+    Excellent: [
+      "Your academic momentum is truly impressive! To reach the next level, consider mentoring peers or engaging in advanced research projects in your field.",
+      "You are consistently outperforming expectations. This is a great time to explore competitive programming or industry certifications to complement your high CGPA.",
+      "Extraordinary consistency! You've mastered the core concepts. We recommend diving into specialized electives that challenge your current understanding even further.",
+      "Your performance is top-tier. Maintain this focus while also building a professional portfolio on GitHub to showcase your technical excellence to future employers.",
+      "Brilliant work across all subjects! You have the potential to lead student organizations or technical clubs. Your balanced approach to study is a model for others.",
+      "You've achieved a significant milestone. Keep pushing your boundaries with interdisciplinary projects that combine your strongest subjects for innovative results.",
+      "Superior academic discipline! Use this strong foundation to start preparing for higher education entrance exams or prestigious internship opportunities early on.",
+      "You are in the top percentile. Focus on deep-tech applications of your subjects and consider publishing a blog post or paper on your recent learnings.",
+      "Outstanding results! Your dedication is paying off. To maintain this lead, keep up with the latest industry trends by following top-tier tech journals.",
+      "You've mastered the art of learning. Challenge yourself by taking on a complex capstone project that solves a real-world problem using your diverse skill set.",
+      "Exceptional academic record! Consider applying for undergraduate research assistantships to gain hands-on experience in your favorite subject area.",
+      "You are setting a high bar for excellence. Focus on developing soft skills like leadership and communication to match your strong technical foundation.",
+      "Brilliant performance! We recommend exploring open-source contributions to real-world projects to apply your classroom knowledge in a global context.",
+      "Your consistency is a major asset. Keep refining your problem-solving techniques and consider participating in national-level technical competitions.",
+      "You've reached a peak performance level. To keep your edge, try teaching a complex topic to a peer; it's the ultimate test of true mastery."
+    ],
+    Good: [
+      "You have a solid foundation! A slight increase in your attendance could push your overall performance into the 'Excellent' category. Consistency is the key now.",
+      "Great job so far. You're performing well in most areas, but focusing a bit more on your assignments could significantly boost your internal marks next semester.",
+      "You're on the right track. Try to participate more in class discussions to deepen your understanding and gain more confidence in your subject knowledge.",
+      "Good steady progress. We recommend setting up a weekly review session for your most challenging subjects to turn those 'Good' grades into 'Excellent' ones.",
+      "Your performance is reliable and strong. To break through to the top tier, dedicate an extra hour each day to practicing problem-solving in core subjects.",
+      "You've shown great potential. Focus on time management during exams to ensure you can adequately address every question and maximize your scoring potential.",
+      "Healthy performance! You've got the basics down. Now is the time to start applying your knowledge through small side projects or coding challenges.",
+      "Strong work. Your attendance is good, but your quiz scores show room for improvement. Regular revision of class notes will help you bridge that gap.",
+      "You are a consistent performer. To improve further, try to explain complex concepts to your classmates; it's the best way to solidify your own understanding.",
+      "Good performance! You are very close to the 'Excellent' bracket. Focus on refining your presentation skills and detail-oriented work in your assignments.",
+      "Strong steady progress. Consider setting up a dedicated 'deep work' block in your weekly schedule to tackle the most complex topics without distractions.",
+      "You're doing great! To boost your score further, focus on the 'Application' part of your core subjects, as these often carry higher marks in final exams.",
+      "Consistently good results. We recommend seeking out extra-credit assignments or advanced reading material to stay ahead of the standard curriculum.",
+      "You have a solid academic standing. Try to relate your theoretical learnings to real-life case studies to make the concepts more memorable and practical.",
+      "Great work this semester. A slightly more proactive approach in project-based learning could be the key to unlocking your next level of achievement."
+    ],
+    "Needs Improvement": [
+      "You're making an effort, but some areas need closer attention. We recommend setting daily study goals and seeking help from teachers for topics you find confusing.",
+      "Your attendance is a bit low, which is impacting your score. Try to be more regular in class to catch important hints and explanations from your professors.",
+      "You have the ability to do much better. Focus on completing your assignments on time as they carry significant weight in your overall academic performance score.",
+      "It's time to step up your revision game. Using flashcards for quick daily reviews could help you improve your retention and boost your quiz results quickly.",
+      "You're currently in the middle tier. Reorganizing your study space and creating a dedicated timetable will help you stay focused and improve your marks.",
+      "Don't get discouraged! Many students find this semester challenging. Form a study group with your peers to tackle difficult concepts together more effectively.",
+      "Check your attendance rate—it's currently a drag on your performance. Small changes in your daily routine can lead to much higher consistency in class.",
+      "Your internal marks are below average. Take advantage of office hours to clear your doubts early before the final exams approach. You can do this!",
+      "Focus on the 'Graph Theory' and 'Data Structures' modules specifically. Strengthening these will provide a much-needed boost to your overall technical grade.",
+      "You have potential that isn't fully reflected in your grades. Practice active listening in class and take structured notes to improve your understanding.",
+      "It's time to re-evaluate your study habits. Try the 'Active Recall' method to better prepare for quizzes and improve your subject-wise retention score.",
+      "You are standing on the edge of a breakthrough. Focus on completing 100% of your coursework this week to regain your academic momentum quickly.",
+      "Small, incremental improvements are your friend. Focus on mastering one small concept each day, and you'll see a significant cumulative effect in weeks.",
+      "Your current scores suggest some foundational gaps. Don't worry—reviewing the first few weeks of lecture notes will help you catch up effectively."
+    ],
+    "At Risk": [
+      "We're concerned about your current progress. Please schedule a meeting with your academic advisor as soon as possible to create a recovery plan for your studies.",
+      "Your attendance and marks are significantly below the safety threshold. Dedicating time to catch up on missed lectures is critical right now for your success.",
+      "Urgent action is needed. Focus on clearing your pending assignments and attending every single class from now on to avoid falling further behind.",
+      "You are at a critical junction. We recommend a complete focus on your core subjects for the next 3 weeks to ensure you satisfy the minimum passing criteria.",
+      "High priority: Your grades in internal exams indicate a need for immediate intervention. Reach out to your 'Subject Matter Experts' for personalized guidance.",
+      "Attendance is your primary obstacle. Improving your presence in class is the fastest way to start recovering your grades and gaining back your confidence.",
+      "A proactive approach is required. Start by mastering one small topic at a time using the platform's flashcards and quizzes to build up your knowledge base.",
+      "You need to significantly increase your study hours. Avoid distractions and use the 'Pomodoro' technique to stay productive during your intense revision sessions.",
+      "Your current path leads to academic probation. Let's turn this around by setting small, achievable goals each day and tracking your progress diligently.",
+      "It's not too late to improve! Start with the most recent lecture and work your way back. Consistency from today onwards will make a huge difference.",
+      "Immediate intervention required: You are currently performing at 'At Risk' levels. Focus on attending every tutorial session for extra guidance and support.",
+      "Your academic standing is in danger. We recommend a complete digital detox during study hours to ensure 100% focus on your core recovery curriculum.",
+      "Focus on the basics first. You cannot build a tall building on a weak foundation. Review the introductory concepts of every subject to find your footing.",
+      "Reach out to your faculty mentor today. They can provide a customized learning path to help you bridge the gaps and avoid failing your current term.",
+      "Consistency is currently your greatest weakness. Set an alarm for every class and make it your top priority to be present and engaged every single day."
+    ]
+  };
+
+  const student = db
+    .prepare("SELECT problemSubjects FROM students WHERE id = ?")
+    .get(studentId);
+  const problemSubjects = student?.problemSubjects
+    ? JSON.parse(student.problemSubjects)
+    : [];
+
+  const categoryTips = insightsPool[prediction] || insightsPool["At Risk"];
+  const randomTip =
+    categoryTips[Math.floor(Math.random() * categoryTips.length)];
+  const recommendation = randomTip;
+
+  // Diverse advice for reported problem subjects
+  const problemSubjectAdvicePool = [
+    "Since you find this subject challenging, we recommend dedicating at least 45 minutes daily to focused practice. Focus specifically on the foundational concepts before moving to advanced topics, as the current modules build heavily on introductory theories.",
+    "To master this area, try implementing the 'Feynman Technique' where you explain complex concepts to yourself out loud. Your recent results suggest that visual aids and diagrams might help you grasp the abstract theories more effectively than rote memorization.",
+    "I've noticed this is a difficult area for you. It might be beneficial to join a peer study group or schedule a one-on-one session with your professor to clarify any lingering doubts that might be slowing down your academic progress.",
+    "Don't let this subject discourage you! Many students find this module abstract. Try breaking down the complex topics into 15-minute 'micro-learning' sessions to avoid overwhelm and ensure better retention of the material.",
+    "Consider using the platform's flashcards specifically for this subject at least three times a week. Active recall is the most effective way to turn a 'Weak Subject' into a 'Strong' one over the course of the semester.",
+    "Focus on the 'Practical Application' of these concepts. Sometimes seeing how the theory works in a real-world project can make the abstract parts much easier to understand and remember during your quizzes.",
+  ];
+
+  const problem_subjects_advice = problemSubjects.map((subject) => ({
+    subject,
+    advice:
+      problemSubjectAdvicePool[
+        Math.floor(Math.random() * problemSubjectAdvicePool.length)
+      ],
+  }));
+
+  // Identify lowest subject
+  let lowestSubject = null;
+  if (marks.length > 0) {
+    lowestSubject = marks.reduce((prev, curr) =>
+      prev.marks < curr.marks ? prev : curr,
+    );
+  }
+
+  // Subject specific tips pool
+  const subjectSpecificTips = {
+    "Design and Analysis of Algorithms": {
+      high: [
+        "Revise time and space complexity concepts.",
+        "Practice solving problems using Divide and Conquer strategy.",
+        "Study Greedy algorithms with examples like activity selection and knapsack.",
+        "Practice Dynamic Programming problems such as matrix chain multiplication and knapsack.",
+        "Understand Backtracking algorithms like the N-Queens problem.",
+        "Solve previous year KTU algorithm problems.",
+      ],
+      average: [
+        "Practice analyzing algorithm time complexity using Big-O notation.",
+        "Compare different algorithm design strategies (Greedy vs Dynamic Programming).",
+        "Practice recursive algorithm tracing.",
+        "Review important algorithms like Strassen’s matrix multiplication.",
+      ],
+      low: [
+        "Continue practicing advanced algorithm problems.",
+        "Focus on writing clear algorithm steps and complexity analysis.",
+        "Solve additional practice problems to improve problem-solving speed.",
+      ],
+      general: [
+        "Practice writing pseudocode for algorithms.",
+        "Draw recursion trees to understand recursive algorithms.",
+        "Solve algorithm problems daily to improve logical thinking.",
+        "Use flowcharts to visualize algorithm steps.",
+        "Practice previous year KTU questions.",
+      ],
+    },
+    "Computer Graphics and Image Processing": {
+      high: [
+        "Practice window-to-viewport transformation problems step by step.",
+        "Revise line clipping algorithms such as Cohen–Sutherland and Liang–Barsky.",
+        "Study the 3D viewing pipeline with diagrams.",
+        "Understand different projections (parallel and perspective).",
+        "Revise depth buffer algorithm and scan-line algorithm.",
+        "Practice image representation techniques like binary, grayscale, and color images.",
+      ],
+      average: [
+        "Practice polygon clipping and line clipping problems.",
+        "Revise 2D and 3D transformations with examples.",
+        "Study steps in digital image processing.",
+        "Review projection methods and their applications.",
+      ],
+      low: [
+        "Continue practicing graphics transformation problems.",
+        "Focus on drawing neat diagrams for algorithms in exams.",
+        "Solve previous year KTU exam questions.",
+      ],
+      general: [
+        "Practice drawing diagrams for algorithms and pipelines.",
+        "Revise important formulas and transformation matrices.",
+        "Watch visual tutorials for graphics concepts.",
+        "Solve previous year KTU questions regularly.",
+        "Create short notes for each module.",
+      ],
+    },
+    "Compiler Design": {
+      high: [
+        "Revise phases of a compiler and their functions.",
+        "Practice lexical analysis concepts such as tokens, lexemes, and patterns.",
+        "Study syntax analysis and parsing techniques.",
+        "Practice LL(1) parsing and LR parsing methods.",
+        "Understand parse trees and syntax trees with examples.",
+        "Revise intermediate code generation techniques.",
+      ],
+      average: [
+        "Practice constructing parsing tables for LL(1) grammars.",
+        "Revise error detection and error recovery methods.",
+        "Study symbol table management in compilers.",
+        "Review code optimization techniques.",
+      ],
+      low: [
+        "Continue practicing compiler design problems.",
+        "Focus on writing clear explanations for compiler phases.",
+        "Solve previous year KTU compiler design questions.",
+      ],
+      general: [
+        "Draw compiler phase diagrams during revision.",
+        "Practice grammar derivation examples.",
+        "Create short notes for parsing techniques.",
+        "Solve previous year KTU exam questions.",
+        "Use examples to understand syntax analysis concepts.",
+      ],
+    },
+  };
+
+  const subject_tips = marks
+    .map((m) => {
+      const pool = subjectSpecificTips[m.subject];
+      if (!pool) return null;
+
+      let tips = [];
+      if (m.marks < 50) tips = [...pool.high];
+      else if (m.marks <= 70) tips = [...pool.average];
+      else tips = [...pool.low];
+
+      // Add 1-2 random general tips
+      const general = [...pool.general];
+      for (let i = 0; i < 2 && general.length > 0; i++) {
+        const idx = Math.floor(Math.random() * general.length);
+        tips.push(general.splice(idx, 1)[0]);
+      }
+
+      return { subject: m.subject, tips };
+    })
+    .filter((t) => t !== null);
 
   res.json({
     marks,
@@ -1677,6 +1914,10 @@ app.get("/api/analytics/student/:id", authenticateToken, (req, res) => {
     cgpaTrend: cgpas,
     prediction,
     performanceScore,
+    recommendation,
+    problem_subjects_advice,
+    lowestSubject,
+    subject_tips,
   });
 });
 
