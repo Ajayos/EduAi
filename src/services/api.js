@@ -176,6 +176,7 @@ export const api = {
     }),
   getStudentAnalytics: (id) => request(`/analytics/student/${id}`),
   getStudentAssignments: () => request("/student/assignments"),
+  generateAIContent: (data) => request("/generate-ai-content", { method: "POST", body: JSON.stringify(data) }),
   getAssignmentAnalytics: () => request("/teacher/analytics/assignments"),
   getQuizAnalytics: () => request("/teacher/analytics/quizzes"),
   updateAssignmentPriority: (id, data) =>

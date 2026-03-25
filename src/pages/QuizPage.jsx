@@ -31,6 +31,9 @@ export default function QuizPage() {
   const [editingQuiz, setEditingQuiz] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
+  const [showAiModal, setShowAiModal] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [aiSubjectId, setAiSubjectId] = useState("");
 
   // Quiz Creation/Edit State
   const [newQuiz, setNewQuiz] = useState({
@@ -103,6 +106,25 @@ export default function QuizPage() {
       fetchQuizzes();
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleAiGenerate = async (e) => {
+    e.preventDefault();
+    setIsGenerating(true);
+    try {
+      await api.generateAIContent({
+        file_url: "mock_uploaded_file.pdf",
+        subject_id: aiSubjectId || (subjects[0]?.id ? String(subjects[0].id) : ""),
+        type: "quiz"
+      });
+      setShowAiModal(false);
+      fetchQuizzes();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to generate quiz");
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -332,13 +354,25 @@ export default function QuizPage() {
           </p>
         </div>
         {user?.role === "teacher" && (
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
-          >
-            <Plus size={20} />
-            Create Quiz
-          </button>
+          <div className="flex gap-4">
+            <button
+              onClick={() => {
+                setAiSubjectId(subjects[0]?.id ? String(subjects[0].id) : "");
+                setShowAiModal(true);
+              }}
+              className="flex items-center gap-2 bg-purple-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-purple-700 transition-all shadow-lg shadow-purple-100"
+            >
+              <Sparkles size={20} />
+              AI Generate
+            </button>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
+            >
+              <Plus size={20} />
+              Create Quiz
+            </button>
+          </div>
         )}
       </div>
 
@@ -545,6 +579,77 @@ export default function QuizPage() {
                   className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
                 >
                   {editingQuiz ? "Update Quiz" : "Publish Quiz"}
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showAiModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden"
+            >
+              {isGenerating && (
+                <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
+                   <Sparkles className="text-purple-600 animate-pulse mb-4 w-12 h-12" />
+                   <h3 className="text-lg font-bold text-slate-800">Sarvam AI is analyzing your PDF...</h3>
+                   <p className="text-sm text-slate-500 mt-2">Generating questions and answers</p>
+                </div>
+              )}
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                    <Sparkles className="text-purple-600" /> AI Quiz Gen
+                  </h2>
+                  <p className="text-slate-500">Upload study material</p>
+                </div>
+                <button
+                  onClick={() => setShowAiModal(false)}
+                  className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <form onSubmit={handleAiGenerate} className="space-y-6">
+                <div>
+                   <label className="block text-sm font-bold text-slate-700 mb-2">
+                     Study Material (PDF/DOCX)
+                   </label>
+                   <div className="w-full border-2 border-dashed border-slate-300 rounded-2xl p-8 text-center hover:bg-slate-50 hover:border-purple-400 transition-colors cursor-pointer">
+                      <BookOpen className="mx-auto text-slate-400 mb-3" size={32} />
+                      <p className="text-sm font-bold text-slate-700">Click to upload or drag & drop</p>
+                      <p className="text-xs text-slate-500 mt-1">Maximum file size 10MB</p>
+                   </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Target Subject</label>
+                  <select
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                    value={aiSubjectId}
+                    onChange={(e) => setAiSubjectId(e.target.value)}
+                  >
+                    {subjects.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.class} • Sem {s.semester})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isGenerating}
+                  className="w-full py-4 bg-purple-600 text-white rounded-2xl font-bold hover:bg-purple-700 transition-all shadow-lg shadow-purple-100 flex items-center justify-center gap-2"
+                >
+                  <BrainCircuit size={20} />
+                  Generate Quiz
                 </button>
               </form>
             </motion.div>

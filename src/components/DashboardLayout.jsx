@@ -25,6 +25,7 @@ import { motion, AnimatePresence } from "framer-motion";
 export default function DashboardLayout({ children, activeTab, setActiveTab }) {
   const { user, logout } = useAuthStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = React.useState(false);
 
   const menuItems = [
     {
@@ -106,21 +107,7 @@ export default function DashboardLayout({ children, activeTab, setActiveTab }) {
           )}
         </nav>
 
-        <div className="p-4 border-t border-slate-100">
-          <div className="bg-slate-50 rounded-2xl p-4 mb-4">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-              Logged in as
-            </p>
-            <p className="font-bold text-slate-900 truncate">{user?.name}</p>
-            <p className="text-xs text-slate-500 capitalize">{user?.role}</p>
-          </div>
-          <button
-            onClick={logout}
-            className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 rounded-xl transition-all font-medium"
-          >
-            <LogOut size={20} />
-            Logout
-          </button>
+        <div className="p-4 border-t border-slate-100 hidden">
         </div>
       </aside>
 
@@ -226,8 +213,42 @@ export default function DashboardLayout({ children, activeTab, setActiveTab }) {
               <Bell size={20} />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
             </button>
-            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold">
-              {user?.name.charAt(0)}
+            <div className="relative">
+              <button
+                onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+                className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold hover:bg-blue-200 transition-colors"
+              >
+                {user?.name.charAt(0)}
+              </button>
+              <AnimatePresence>
+                {isProfileDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-50 overflow-hidden"
+                  >
+                    <div className="px-4 py-3 border-b border-slate-100 mb-1">
+                      <p className="text-sm font-bold text-slate-900 truncate">
+                        {user?.name}
+                      </p>
+                      <p className="text-xs text-slate-500 capitalize">
+                        {user?.role}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setIsProfileDropdownOpen(false);
+                        logout();
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-red-500 hover:bg-red-50 transition-colors text-sm font-bold text-left"
+                    >
+                      <LogOut size={16} />
+                      Logout
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </header>

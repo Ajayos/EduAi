@@ -36,6 +36,7 @@ import {
   ShieldCheck,
   Download,
   Clock,
+  Award
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -463,6 +464,55 @@ export default function StudentDashboard({ setActiveTab }) {
             />
           </div>
 
+          {/* User Achievements and Points Section */}
+          <div className="bg-gradient-to-r from-amber-500 to-orange-400 p-8 rounded-[2.5rem] border border-orange-200 shadow-lg text-white">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-8">
+              <div>
+                <h3 className="text-2xl font-black mb-2 flex items-center gap-2">
+                  <Award size={28} /> Rewards & Achievements
+                </h3>
+                <p className="text-orange-100 font-medium">
+                  Track your total points, stars, and unlocked badges!
+                </p>
+              </div>
+              <div className="flex gap-4">
+                <div className="bg-white/20 px-6 py-4 rounded-2xl backdrop-blur-sm text-center">
+                  <p className="text-sm font-bold uppercase tracking-wider text-orange-100 mb-1">Total Stars</p>
+                  <p className="text-3xl font-black flex items-center justify-center gap-2">
+                    {user?.stars || 0} <Star className="text-yellow-300 fill-yellow-300" size={24} />
+                  </p>
+                </div>
+                <div className="bg-white/20 px-6 py-4 rounded-2xl backdrop-blur-sm text-center">
+                  <p className="text-sm font-bold uppercase tracking-wider text-orange-100 mb-1">Total Points</p>
+                  <p className="text-3xl font-black flex items-center justify-center gap-2">
+                    {user?.points || 0} <Target className="text-blue-100" size={24} />
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-white/10 rounded-3xl p-6">
+              <h4 className="text-lg font-bold mb-4">Recent Achievements</h4>
+              {achievements.length === 0 ? (
+                <p className="text-orange-100 italic">No achievements unlocked yet.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {achievements.slice(0, 3).map((ach, idx) => (
+                    <div key={idx} className="bg-white/20 rounded-2xl p-4 flex items-center gap-4">
+                      <div className="p-3 bg-yellow-400 text-yellow-900 rounded-xl">
+                        <Star size={20} fill="currentColor" />
+                      </div>
+                      <div>
+                        <p className="font-bold">{ach.title}</p>
+                        <p className="text-xs text-orange-100">{ach.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Hero Performance Graph */}
           <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between mb-8">
@@ -563,12 +613,6 @@ export default function StudentDashboard({ setActiveTab }) {
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => handleCheckIn(m.subject_id)}
-                    className="flex-1 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-all"
-                  >
-                    Check In
-                  </button>
-                  <button
                     onClick={() => {
                       setRequestData({
                         ...requestData,
@@ -577,9 +621,9 @@ export default function StudentDashboard({ setActiveTab }) {
                       });
                       setShowRequestModal(true);
                     }}
-                    className="flex-1 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all"
+                    className="w-full py-2 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all"
                   >
-                    Correction
+                    Request Correction
                   </button>
                 </div>
               </div>

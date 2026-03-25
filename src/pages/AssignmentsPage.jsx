@@ -37,6 +37,11 @@ export default function AssignmentsPage() {
   });
   const [selectedFile, setSelectedFile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState("grid");
+  const [filterSubject, setFilterSubject] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [editingStudentAssignment, setEditingStudentAssignment] = useState(null);
+  const [studentEditData, setStudentEditData] = useState({ priority: 0, due_date: "" });
 
   useEffect(() => {
     fetchData();
@@ -150,6 +155,18 @@ export default function AssignmentsPage() {
     }
   };
 
+  const handleStudentEditSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await api.updateAssignmentPriority(editingStudentAssignment.id, studentEditData);
+      setEditingStudentAssignment(null);
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update assignment details.");
+    }
+  };
+
   const toggleStudent = (id) => {
     setNewAssignment((prev) => ({
       ...prev,
@@ -204,13 +221,22 @@ export default function AssignmentsPage() {
           </p>
         </div>
         {user?.role === "teacher" && (
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
-          >
-            <Plus size={20} />
-            New Assignment
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
+              className="bg-white border border-slate-200 text-slate-700 px-6 py-3 rounded-2xl font-bold flex items-center gap-2 hover:bg-slate-50 transition-all shadow-sm"
+            >
+              <FileText size={20} />
+              {viewMode === "grid" ? "View All (List)" : "View Grouped"}
+            </button>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
+            >
+              <Plus size={20} />
+              New Assignment
+            </button>
+          </div>
         )}
       </div>
 
@@ -310,29 +336,42 @@ export default function AssignmentsPage() {
                         <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-100">
                           <div className="flex items-center gap-2">
                             <span
-                              className={`w-2 h-2 rounded-full ${assignment.is_completed ? "bg-emerald-400" : "bg-orange-400"}`}
+                              className={`w-2 h-2 rounded-full ${assignment.is_completed ? "bg-emerald-400" : (new Date(assignment.due_date) < new Date() ? "bg-red-500" : new Date(assignment.due_date) <= new Date(Date.now() + 86400000 * 2) ? "bg-orange-500" : "bg-blue-400")}`}
                             ></span>
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                               {assignment.is_completed
                                 ? "Completed"
-                                : "Pending"}
+                                : new Date(assignment.due_date) < new Date() ? "Overdue" : "Pending"}
                             </span>
                           </div>
                           {!assignment.is_completed && (
-                            <button
-                              onClick={async () => {
-                                try {
-                                  await api.completeAssignment(assignment.id);
-                                  fetchData();
-                                } catch (err) {
-                                  console.error(err);
-                                }
-                              }}
-                              className="p-2 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-all"
-                              title="Mark as Completed"
-                            >
-                              <CheckSquare size={16} />
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingStudentAssignment(assignment);
+                                  setStudentEditData({ priority: assignment.priority || 0, due_date: assignment.due_date || "" });
+                                }}
+                                className="p-2 bg-slate-100 text-slate-600 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-all"
+                                title="Edit Priority & Date"
+                              >
+                                <Calendar size={16} />
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    await api.completeAssignment(assignment.id);
+                                    fetchData();
+                                  } catch (err) {
+                                    console.error(err);
+                                  }
+                                }}
+                                className="p-2 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-all"
+                                title="Mark as Completed"
+                              >
+                                <CheckSquare size={16} />
+                              </button>
+                            </div>
                           )}
                         </div>
                       </motion.div>
@@ -349,7 +388,7 @@ export default function AssignmentsPage() {
             </div>
           )}
         </div>
-      ) : (
+      ) : viewMode === "grid" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {teacherGrouped.length === 0 ? (
             <div className="col-span-full py-12 text-center bg-white rounded-3xl border border-dashed border-slate-300">
@@ -424,6 +463,70 @@ export default function AssignmentsPage() {
               </motion.div>
             ))
           )}
+        </div>
+      ) : (
+        <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden p-8">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold text-slate-900">Detailed Assignment List</h3>
+            <div className="flex gap-4">
+              <select
+                className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm focus:ring-2 focus:ring-blue-500"
+                value={filterSubject}
+                onChange={(e) => setFilterSubject(e.target.value)}
+              >
+                <option value="">All Subjects</option>
+                {subjects.map(sub => <option key={sub.id} value={sub.id}>{sub.name}</option>)}
+              </select>
+              <select
+                className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm focus:ring-2 focus:ring-blue-500"
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+              >
+                <option value="all">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-slate-50 border-b border-slate-100">
+                <tr>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Title</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Student</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Subject</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Due Date</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Status</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {assignments
+                  .filter(a => filterSubject ? a.subject_id === parseInt(filterSubject) : true)
+                  .filter(a => filterStatus === "all" ? true : filterStatus === "completed" ? a.is_completed : !a.is_completed)
+                  .map(a => (
+                    <tr key={a.id} className="hover:bg-slate-50 transition-all group">
+                      <td className="px-6 py-4 font-bold text-slate-900">{a.title}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600">{a.student_name}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600">{a.subject_name || "General"}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600">{a.due_date ? new Date(a.due_date).toLocaleDateString() : "-"}</td>
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${a.is_completed ? "bg-emerald-50 text-emerald-600" : "bg-orange-50 text-orange-600"}`}>
+                          {a.is_completed ? "Completed" : "Pending"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                           <button onClick={() => handleDeleteClick(a)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Delete">
+                             <Trash2 size={16} />
+                           </button>
+                        </div>
+                      </td>
+                    </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
