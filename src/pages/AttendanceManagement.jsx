@@ -84,9 +84,31 @@ export default function AttendanceManagement() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setSuccess("");
     try {
       await api.addAttendance({ ...attendanceData, student_id: selectedStudent.id });
-      setSuccess(`Attendance logged successfully for ${selectedStudent.name}!`);
+      setSuccess(`Attendance logged for ${selectedStudent.name}!`);
+      await fetchStudentAttendance(selectedStudent.id);
+      fetchData();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleUpdateLog = async (logId, newStatus, date, time) => {
+    try {
+      await api.updateAttendance(logId, { status: newStatus, date, time });
+      await fetchStudentAttendance(selectedStudent.id);
+      fetchData();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleDeleteLog = async (logId) => {
+    if (!window.confirm("Delete this attendance entry?")) return;
+    try {
+      await api.deleteAttendance(logId);
       await fetchStudentAttendance(selectedStudent.id);
       fetchData();
     } catch (err) {
@@ -369,34 +391,50 @@ export default function AttendanceManagement() {
                               </div>
                               <span className="text-[10px] font-bold text-slate-400 uppercase">{logs.length} classes</span>
                             </div>
-                          </div>
-
-                          {/* Log Rows */}
+                          </div>                          {/* Log Rows */}
                           <div className="divide-y divide-slate-50">
                             {logs.sort((a, b) => (`${b.date} ${b.time || ''}`).localeCompare(`${a.date} ${a.time || ''}`)).map((log) => {
                               const cfg = STATUS_CONFIG[log.status] || STATUS_CONFIG["Present"];
                               const Icon = cfg.icon;
                               return (
-                                <div key={log.id} className="flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors">
-                                  <div className="flex items-center gap-4">
-                                    <div className={`p-2.5 bg-${cfg.color}-50 text-${cfg.color}-600 rounded-xl`}>
-                                      <Icon size={16} />
+                                <div key={log.id} className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors">
+                                  <div className="flex items-center gap-3">
+                                    <div className={`p-2 bg-${cfg.color}-50 text-${cfg.color}-600 rounded-xl`}>
+                                      <Icon size={14} />
                                     </div>
                                     <div>
-                                      <p className="font-bold text-slate-900 text-sm">{log.status}</p>
-                                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1 mt-0.5">
+                                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1">
                                         <Calendar size={10} /> {log.date}
-                                        {log.time && <><Clock size={10} className="ml-2" /> {log.time}</>}
+                                        {log.time && <><Clock size={10} className="ml-1" /> {log.time}</>}
                                       </p>
                                     </div>
                                   </div>
-                                  <span className={`w-2 h-2 rounded-full ${
-                                    log.status === "Present" ? "bg-emerald-500" : log.status === "Absent" ? "bg-red-500" : "bg-orange-500"
-                                  }`} />
+                                  <div className="flex items-center gap-1.5">
+                                    {["Present", "Late", "Absent"].map(s => (
+                                      <button
+                                        key={s}
+                                        onClick={() => handleUpdateLog(log.id, s, log.date, log.time)}
+                                        className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all ${
+                                          log.status === s
+                                            ? s === "Present" ? "bg-emerald-500 text-white" : s === "Late" ? "bg-orange-500 text-white" : "bg-red-500 text-white"
+                                            : "bg-slate-100 text-slate-400 hover:bg-slate-200"
+                                        }`}
+                                      >
+                                        {s}
+                                      </button>
+                                    ))}
+                                    <button
+                                      onClick={() => handleDeleteLog(log.id)}
+                                      className="ml-1 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                    >
+                                      <X size={12} />
+                                    </button>
+                                  </div>
                                 </div>
                               );
                             })}
                           </div>
+
                         </div>
                       );
                     })

@@ -104,6 +104,8 @@ export const api = {
   getStudentAttendance: (studentId) => request(`/attendance/${studentId}`),
   updateAttendance: (id, data) =>
     request(`/attendance/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteAttendance: (id) =>
+    request(`/attendance/${id}`, { method: "DELETE" }),
   checkInAttendance: (data) =>
     request("/attendance/check-in", {
       method: "POST",

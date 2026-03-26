@@ -947,12 +947,20 @@ app.post("/api/attendance", authenticateToken, (req, res) => {
 app.put("/api/attendance/:id", authenticateToken, (req, res) => {
   if (req.user.role !== "teacher" && req.user.role !== "admin")
     return res.sendStatus(403);
-  const { status, date } = req.body;
-  db.prepare("UPDATE attendance SET status = ?, date = ? WHERE id = ?").run(
+  const { status, date, time } = req.body;
+  db.prepare("UPDATE attendance SET status = ?, date = ?, time = ? WHERE id = ?").run(
     status,
     date,
+    time || null,
     req.params.id,
   );
+  res.json({ success: true });
+});
+
+app.delete("/api/attendance/:id", authenticateToken, (req, res) => {
+  if (req.user.role !== "teacher" && req.user.role !== "admin")
+    return res.sendStatus(403);
+  db.prepare("DELETE FROM attendance WHERE id = ?").run(req.params.id);
   res.json({ success: true });
 });
 
