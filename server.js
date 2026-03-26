@@ -263,6 +263,7 @@ try {
   // Targeted Assignments Migration
   try { db.prepare("ALTER TABLE quizzes ADD COLUMN student_id INTEGER").run(); } catch (e) {}
   try { db.prepare("ALTER TABLE flashcards ADD COLUMN student_id INTEGER").run(); } catch (e) {}
+  try { db.prepare("ALTER TABLE attendance ADD COLUMN time TEXT").run(); } catch (e) {}
 
 // Seed Admin if not exists
 const adminExists = db
@@ -897,26 +898,46 @@ app.post("/api/marks", authenticateToken, (req, res) => {
 
 app.get("/api/attendance/:studentId", authenticateToken, (req, res) => {
   const attendance = db
-    .prepare("SELECT * FROM attendance WHERE student_id = ?")
+    .prepare(`
+      SELECT a.*, s.name AS subject
+      FROM attendance a
+      LEFT JOIN subjects s ON a.subject_id = s.id
+      WHERE a.student_id = ?
+      ORDER BY a.date DESC, a.time DESC
+    `)
     .all(req.params.studentId);
   res.json(attendance);
 });
 
 app.post("/api/attendance", authenticateToken, (req, res) => {
-  const { student_id, subject_id, date, status } = req.body;
+  let { student_id, subject_id, date, time, status } = req.body;
+
+  // Parse as integers — HTML form selects send strings
+  const sid = parseInt(student_id);
+  const subid = parseInt(subject_id);
+  const entryTime = time || new Date().toTimeString().slice(0, 5);
+
+  if (isNaN(sid) || isNaN(subid) || !date || !status) {
+    return res.status(400).json({ message: `Missing required fields. Received: student_id=${student_id}, subject_id=${subject_id}, date=${date}, status=${status}` });
+  }
+
+  // Validate FK existence
+  const studentExists = db.prepare("SELECT id FROM students WHERE id = ?").get(sid);
+  if (!studentExists) return res.status(400).json({ message: `Student ID ${sid} does not exist.` });
+
+  const subjectExists = db.prepare("SELECT id, name FROM subjects WHERE id = ?").get(subid);
+  if (!subjectExists) return res.status(400).json({ message: `Subject ID ${subid} does not exist.` });
+
   db.prepare(
-    "INSERT INTO attendance (student_id, subject_id, date, status) VALUES (?, ?, ?, ?)",
-  ).run(student_id, subject_id, date, status);
+    "INSERT INTO attendance (student_id, subject_id, date, time, status) VALUES (?, ?, ?, ?, ?)",
+  ).run(sid, subid, date, entryTime, status);
 
   // Notify student
-  const subject = db
-    .prepare("SELECT name FROM subjects WHERE id = ?")
-    .get(subject_id);
-  const subjectName = subject ? subject.name : `Subject ID ${subject_id}`;
+  const subjectName = subjectExists.name || `Subject ID ${subid}`;
   db.prepare(
     "INSERT INTO notifications (user_id, role, message) VALUES (?, 'student', ?)",
   ).run(
-    student_id,
+    sid,
     `Attendance marked as ${status} for ${subjectName} on ${date}`,
   );
 
@@ -1677,7 +1698,7 @@ app.get("/api/analytics/student/:id", authenticateToken, (req, res) => {
       `
       SELECT subject_id, 
              COUNT(*) as total,
-             SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present
+             SUM(CASE WHEN status = 'Present' OR status = 'Late' THEN 1 ELSE 0 END) as present
       FROM attendance 
       WHERE student_id = ?
       GROUP BY subject_id
@@ -1702,7 +1723,7 @@ app.get("/api/analytics/student/:id", authenticateToken, (req, res) => {
 
   const totalClasses = attendance.length;
   const attendedClasses = attendance.filter(
-    (a) => a.status === "present",
+    (a) => a.status === "Present" || a.status === "Late",
   ).length;
   const attendanceRate =
     totalClasses > 0 ? (attendedClasses / totalClasses) * 100 : 0;

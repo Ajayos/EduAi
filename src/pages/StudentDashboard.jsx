@@ -46,6 +46,7 @@ export default function StudentDashboard({ setActiveTab }) {
   const [assignments, setAssignments] = useState([]);
   const [achievements, setAchievements] = useState([]);
   const [timetable, setTimetable] = useState([]);
+  const [attendanceLogs, setAttendanceLogs] = useState([]);
   const [selectedSubject, setSelectedSubject] = useState(null);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestData, setRequestData] = useState({
@@ -113,6 +114,16 @@ export default function StudentDashboard({ setActiveTab }) {
       setAssignments(assignRes);
       setTimetable(timetableRes);
       setAchievements(achievementsRes);
+
+      // Also fetch raw attendance logs
+      try {
+        const attLogs = await api.getStudentAttendance(user.id);
+        setAttendanceLogs(attLogs || []);
+      } catch(e) {
+        console.error("Could not load attendance logs:", e);
+        setAttendanceLogs([]);
+      }
+
       setLoading(false);
     }
   };
@@ -774,64 +785,86 @@ export default function StudentDashboard({ setActiveTab }) {
         </>
       )}
 
-      {activeSubTab === "Attendance" && (
-        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h3 className="text-xl font-bold text-slate-900">
-                Attendance Records
-              </h3>
-              <p className="text-slate-500">
-                Subject-wise attendance breakdown
-              </p>
-            </div>
-            <div className="p-4 bg-blue-50 rounded-2xl">
-              <p className="text-xs font-bold text-blue-400 uppercase mb-1">
-                Overall Rate
-              </p>
-              <p className="text-2xl font-black text-blue-600">
-                {analytics.attendanceRate.toFixed(1)}%
-              </p>
-            </div>
-          </div>
+      {activeSubTab === "Attendance" && (() => {
+        const grouped = (attendanceLogs || []).reduce((acc, log) => {
+          const key = log.subject || `Subject ${log.subject_id}`;
+          if (!acc[key]) acc[key] = { logs: [], subject_id: log.subject_id };
+          acc[key].logs.push(log);
+          return acc;
+        }, {});
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {analytics.marks.map((m) => (
-              <div
-                key={m.subject}
-                className="p-6 bg-slate-50 rounded-3xl border border-slate-100"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-bold text-slate-900">{m.subject}</h4>
-                  <span className="text-xs font-bold text-blue-600">{m.attendance || 0}%</span>
+        const overallTotal = attendanceLogs.length;
+        const overallPresent = attendanceLogs.filter(l => l.status === "Present" || l.status === "Late").length;
+        const overallRate = overallTotal > 0 ? ((overallPresent / overallTotal) * 100).toFixed(1) : "0.0";
+
+        return (
+          <div className="space-y-6">
+            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900">Attendance Records</h3>
+                  <p className="text-slate-500 text-sm">Subject-wise attendance breakdown</p>
                 </div>
-                <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden mb-4">
-                  <div className="bg-blue-600 h-full" style={{ width: `${m.attendance || 0}%` }}></div>
-                </div>
-                <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">
-                  <span>Attended: {m.attendedClasses || 0}</span>
-                  <span>Total: {m.totalClasses || 0}</span>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      setRequestData({
-                        ...requestData,
-                        field: "attendance",
-                        subjectId: String(m.subject_id),
-                      });
-                      setShowRequestModal(true);
-                    }}
-                    className="w-full py-2 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all"
-                  >
-                    Request Correction
-                  </button>
+                <div className={`p-4 rounded-2xl ${parseFloat(overallRate) >= 75 ? "bg-emerald-50" : "bg-orange-50"}`}>
+                  <p className="text-xs font-bold text-slate-400 uppercase mb-1">Overall Rate</p>
+                  <p className={`text-2xl font-black ${parseFloat(overallRate) >= 75 ? "text-emerald-600" : "text-orange-600"}`}>{overallRate}%</p>
                 </div>
               </div>
-            ))}
+
+              {attendanceLogs.length === 0 ? (
+                <div className="py-12 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  <p className="text-slate-500 font-medium">No attendance records yet.</p>
+                  <p className="text-xs text-slate-400 mt-1">Your teacher will log attendance for each class.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {Object.entries(grouped).map(([subjectName, {logs, subject_id}]) => {
+                    const total = logs.length;
+                    const present = logs.filter(l => l.status === "Present" || l.status === "Late").length;
+                    const rate = total > 0 ? Math.round((present / total) * 100) : 0;
+                    return (
+                      <div key={subjectName} className="bg-slate-50 rounded-3xl border border-slate-100 overflow-hidden">
+                        <div className="flex items-center justify-between px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center font-black text-sm">
+                              {subjectName.charAt(0)}
+                            </div>
+                            <div>
+                              <p className="font-black text-slate-900 text-sm">{subjectName}</p>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase">{present}/{total} classes attended</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="w-20 bg-slate-200 h-2 rounded-full overflow-hidden">
+                              <div className={`h-full ${rate >= 75 ? "bg-emerald-500" : "bg-orange-500"}`} style={{ width: `${rate}%` }} />
+                            </div>
+                            <span className={`text-xs font-black ${rate >= 75 ? "text-emerald-600" : "text-orange-600"}`}>{rate}%</span>
+                          </div>
+                        </div>
+                        <div className="border-t border-slate-100 divide-y divide-slate-100">
+                          {[...logs].sort((a, b) => (b.date || "").localeCompare(a.date || "")).map(log => (
+                            <div key={log.id} className="flex items-center justify-between px-6 py-3 bg-white">
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="text-slate-600 font-medium">{log.date}</span>
+                                {log.time && <span className="text-slate-400 text-xs">• {log.time}</span>}
+                              </div>
+                              <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide ${
+                                log.status === "Present" ? "bg-emerald-50 text-emerald-700" :
+                                log.status === "Late" ? "bg-orange-50 text-orange-700" :
+                                "bg-red-50 text-red-700"
+                              }`}>{log.status}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {activeSubTab === "Performance" && (
         <div className="space-y-12">

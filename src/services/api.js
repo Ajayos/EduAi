@@ -96,7 +96,12 @@ export const api = {
   addMarks: (data) =>
     request("/marks", { method: "POST", body: JSON.stringify(data) }),
   addAttendance: (data) =>
-    request("/attendance", { method: "POST", body: JSON.stringify(data) }),
+    request("/attendance", { method: "POST", body: JSON.stringify({
+      ...data,
+      subject_id: Number(data.subject_id),
+      student_id: Number(data.student_id),
+    }) }),
+  getStudentAttendance: (studentId) => request(`/attendance/${studentId}`),
   updateAttendance: (id, data) =>
     request(`/attendance/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   checkInAttendance: (data) =>
