@@ -64,6 +64,10 @@ export default function TeacherDashboard({ setActiveTab }) {
     password: "",
     class: "Computer Science",
     semester: 1,
+    fatherName: "",
+    fatherNumber: "",
+    motherName: "",
+    motherNumber: "",
   });
   const [error, setError] = useState("");
   const [latestNotification, setLatestNotification] = useState(null);
@@ -137,8 +141,8 @@ export default function TeacherDashboard({ setActiveTab }) {
         const studentPerformance = students.map((s) => ({
           ...s,
           avgMarks: s.avgMarks || 0,
-          attendance: Math.floor(Math.random() * 30) + 70,
-          achievements: Math.floor(Math.random() * 5),
+          attendance: s.attendance || 0,
+          achievements: s.achievements || 0,
         }));
 
         setStats({
@@ -173,6 +177,10 @@ export default function TeacherDashboard({ setActiveTab }) {
         password: "",
         class: "Computer Science",
         semester: 1,
+        fatherName: "",
+        fatherNumber: "",
+        motherName: "",
+        motherNumber: "",
       });
       fetchStats();
     } catch (err) {
@@ -228,21 +236,21 @@ export default function TeacherDashboard({ setActiveTab }) {
       // Calculate specific requested logic:
       // Average mark as 5 module tests (20 marks each = 100) + 2 internal exams (50 each = 100) + assignments (20)
       // We will structure a detailed mock view for these based on their real avgMarks.
-      const basePoints = student.avgMarks || 70;
+      const basePoints = student.avgMarks || 0;
       
       const detailedMarks = {
         moduleTests: [
-          Math.min(20, Math.floor(basePoints / 5) + Math.floor(Math.random() * 5)),
-          Math.min(20, Math.floor(basePoints / 5) + Math.floor(Math.random() * 5)),
-          Math.min(20, Math.floor(basePoints / 5) + Math.floor(Math.random() * 5)),
-          Math.min(20, Math.floor(basePoints / 5) + Math.floor(Math.random() * 5)),
-          Math.min(20, Math.floor(basePoints / 5) + Math.floor(Math.random() * 5))
+          Math.floor(basePoints / 5),
+          Math.floor(basePoints / 5),
+          Math.floor(basePoints / 5),
+          Math.floor(basePoints / 5),
+          Math.floor(basePoints / 5)
         ],
         internalExams: [
-          Math.min(50, Math.floor(basePoints / 2) + Math.floor(Math.random() * 10)),
-          Math.min(50, Math.floor(basePoints / 2) + Math.floor(Math.random() * 10))
+          Math.floor(basePoints / 2),
+          Math.floor(basePoints / 2)
         ],
-        assignment: Math.min(20, Math.floor(basePoints / 5) + 5)
+        assignment: Math.floor(basePoints / 5)
       };
 
       const totalModules = detailedMarks.moduleTests.reduce((a,b)=>a+b,0);
@@ -794,6 +802,25 @@ export default function TeacherDashboard({ setActiveTab }) {
                       </option>
                     ))}
                   </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Father's Name</label>
+                  <input type="text" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={newStudent.fatherName || ""} onChange={(e) => setNewStudent({...newStudent, fatherName: e.target.value})} placeholder="Father's Name" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Father's Phone</label>
+                  <input type="tel" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={newStudent.fatherNumber || ""} onChange={(e) => setNewStudent({...newStudent, fatherNumber: e.target.value})} placeholder="Phone Number" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Mother's Name</label>
+                  <input type="text" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={newStudent.motherName || ""} onChange={(e) => setNewStudent({...newStudent, motherName: e.target.value})} placeholder="Mother's Name" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Mother's Phone</label>
+                  <input type="tel" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={newStudent.motherNumber || ""} onChange={(e) => setNewStudent({...newStudent, motherNumber: e.target.value})} placeholder="Phone Number" />
                 </div>
               </div>
 

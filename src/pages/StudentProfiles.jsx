@@ -54,17 +54,17 @@ export default function StudentProfiles() {
       
       const detailedMarks = {
         moduleTests: [
-          Math.min(20, Math.floor(basePoints / 5) + Math.floor(Math.random() * 5)),
-          Math.min(20, Math.floor(basePoints / 5) + Math.floor(Math.random() * 5)),
-          Math.min(20, Math.floor(basePoints / 5) + Math.floor(Math.random() * 5)),
-          Math.min(20, Math.floor(basePoints / 5) + Math.floor(Math.random() * 5)),
-          Math.min(20, Math.floor(basePoints / 5) + Math.floor(Math.random() * 5))
+          Math.floor(basePoints / 5),
+          Math.floor(basePoints / 5),
+          Math.floor(basePoints / 5),
+          Math.floor(basePoints / 5),
+          Math.floor(basePoints / 5)
         ],
         internalExams: [
-          Math.min(50, Math.floor(basePoints / 2) + Math.floor(Math.random() * 10)),
-          Math.min(50, Math.floor(basePoints / 2) + Math.floor(Math.random() * 10))
+          Math.floor(basePoints / 2),
+          Math.floor(basePoints / 2)
         ],
-        assignment: Math.min(20, Math.floor(basePoints / 5) + 5)
+        assignment: Math.floor(basePoints / 5)
       };
 
       const totalModules = detailedMarks.moduleTests.reduce((a,b)=>a+b,0);
@@ -158,9 +158,9 @@ export default function StudentProfiles() {
                       </div>
                     </td>
                     <td className="px-8 py-6">
-                      <p className="text-sm font-medium text-slate-700">{student.parentsName || "N/A"}</p>
+                      <p className="text-sm font-medium text-slate-700">{student.fatherName || student.motherName || "N/A"}</p>
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        {student.parentsNumber || "No contact"}
+                        {student.fatherNumber || student.motherNumber || "No contact"}
                       </p>
                     </td>
                     <td className="px-8 py-6">

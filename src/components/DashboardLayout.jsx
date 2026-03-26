@@ -36,6 +36,7 @@ export default function DashboardLayout({ children, activeTab, setActiveTab }) {
     { icon: TrendingUp, label: "Marks", roles: ["teacher"] },
     { icon: CheckCircle, label: "Attendance", roles: ["teacher"] },
     { icon: Users, label: "Profiles", roles: ["teacher"] },
+    { icon: UserPlus, label: "Student Editor", roles: ["teacher"] },
     { icon: BrainCircuit, label: "Learning", roles: ["student"] },
     { icon: Users, label: "Students", roles: ["admin"] },
     { icon: BookOpen, label: "Assignments", roles: ["teacher", "student"] },

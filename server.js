@@ -735,17 +735,21 @@ app.put("/api/admin/students/:id", authenticateToken, (req, res) => {
     semester,
     points,
     stars,
+    fatherName,
+    fatherNumber,
+    motherName,
+    motherNumber
   } = req.body;
   db.prepare(
-    "UPDATE students SET name = ?, username = ?, class = ?, semester = ?, points = ?, stars = ? WHERE id = ?",
-  ).run(name, username, className, semester, points, stars, req.params.id);
+    "UPDATE students SET name = ?, username = ?, class = ?, semester = ?, points = ?, stars = ?, fatherName = ?, fatherNumber = ?, motherName = ?, motherNumber = ? WHERE id = ?",
+  ).run(name, username, className, semester, points, stars, fatherName, fatherNumber, motherName, motherNumber, req.params.id);
   res.json({ success: true });
 });
 
 app.post("/api/teacher/students", authenticateToken, (req, res) => {
   if (req.user.role !== "teacher" && req.user.role !== "admin")
     return res.sendStatus(403);
-  const { name, username, password, class: className, semester } = req.body;
+  const { name, username, password, class: className, semester, fatherName, fatherNumber, motherName, motherNumber } = req.body;
 
   if (!name || !username || !password) {
     return res.status(400).json({ message: "Missing required fields" });
@@ -770,9 +774,9 @@ app.post("/api/teacher/students", authenticateToken, (req, res) => {
     const hashedPassword = bcrypt.hashSync(password, 10);
     const result = db
       .prepare(
-        "INSERT INTO students (name, username, password, class, semester) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO students (name, username, password, class, semester, fatherName, fatherNumber, motherName, motherNumber) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
       )
-      .run(name, username, hashedPassword, className, semester);
+      .run(name, username, hashedPassword, className, semester, fatherName || null, fatherNumber || null, motherName || null, motherNumber || null);
     res.json({ id: result.lastInsertRowid });
   } catch (e) {
     console.error(e);

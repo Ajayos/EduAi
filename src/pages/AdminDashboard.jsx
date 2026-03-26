@@ -57,6 +57,10 @@ export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
     password: "",
     class: "CSE",
     semester: 1,
+    fatherName: "",
+    fatherNumber: "",
+    motherName: "",
+    motherNumber: "",
   });
   const [newSubject, setNewSubject] = useState({
     name: "",
@@ -253,6 +257,10 @@ export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
         password: "",
         class: "Computer Science",
         semester: 1,
+        fatherName: "",
+        fatherNumber: "",
+        motherName: "",
+        motherNumber: "",
       });
       fetchStudents();
     } catch (err) {
@@ -920,50 +928,70 @@ export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
                       )}
                     </>
                   ) : (
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                          Class
-                        </label>
-                        <select
-                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
-                          value={newStudent.class}
-                          onChange={(e) =>
-                            setNewStudent({
-                              ...newStudent,
-                              class: e.target.value,
-                            })
-                          }
-                        >
-                          {classes.map((c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
-                          ))}
-                        </select>
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">
+                            Class
+                          </label>
+                          <select
+                            className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                            value={newStudent.class}
+                            onChange={(e) =>
+                              setNewStudent({
+                                ...newStudent,
+                                class: e.target.value,
+                              })
+                            }
+                          >
+                            {classes.map((c) => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">
+                            Semester
+                          </label>
+                          <select
+                            className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                            value={newStudent.semester}
+                            onChange={(e) =>
+                              setNewStudent({
+                                ...newStudent,
+                                semester: parseInt(e.target.value),
+                              })
+                            }
+                          >
+                            {semesters.map((s) => (
+                              <option key={s} value={s}>
+                                Sem {s}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                          Semester
-                        </label>
-                        <select
-                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
-                          value={newStudent.semester}
-                          onChange={(e) =>
-                            setNewStudent({
-                              ...newStudent,
-                              semester: parseInt(e.target.value),
-                            })
-                          }
-                        >
-                          {semesters.map((s) => (
-                            <option key={s} value={s}>
-                              Sem {s}
-                            </option>
-                          ))}
-                        </select>
+                      <div className="grid grid-cols-2 gap-4 mt-4">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Father's Name</label>
+                          <input type="text" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={newStudent.fatherName || ""} onChange={(e) => setNewStudent({...newStudent, fatherName: e.target.value})} placeholder="Father's Name" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Father's Phone</label>
+                          <input type="tel" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={newStudent.fatherNumber || ""} onChange={(e) => setNewStudent({...newStudent, fatherNumber: e.target.value})} placeholder="Phone Number" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Mother's Name</label>
+                          <input type="text" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={newStudent.motherName || ""} onChange={(e) => setNewStudent({...newStudent, motherName: e.target.value})} placeholder="Mother's Name" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Mother's Phone</label>
+                          <input type="tel" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={newStudent.motherNumber || ""} onChange={(e) => setNewStudent({...newStudent, motherNumber: e.target.value})} placeholder="Phone Number" />
+                        </div>
                       </div>
-                    </div>
+                    </>
                   )}
                 </>
               )}
@@ -1272,6 +1300,24 @@ export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
                         })
                       }
                     />
+                  </div>
+                  <div className="col-span-2 grid grid-cols-2 gap-4 mt-2">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Father's Name</label>
+                        <input type="text" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={selectedItem.fatherName || ""} onChange={(e) => setSelectedItem({...selectedItem, fatherName: e.target.value})} placeholder="Father's Name" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Father's Phone</label>
+                        <input type="tel" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={selectedItem.fatherNumber || ""} onChange={(e) => setSelectedItem({...selectedItem, fatherNumber: e.target.value})} placeholder="Phone Number" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Mother's Name</label>
+                        <input type="text" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={selectedItem.motherName || ""} onChange={(e) => setSelectedItem({...selectedItem, motherName: e.target.value})} placeholder="Mother's Name" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Mother's Phone</label>
+                        <input type="tel" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={selectedItem.motherNumber || ""} onChange={(e) => setSelectedItem({...selectedItem, motherNumber: e.target.value})} placeholder="Phone Number" />
+                      </div>
                   </div>
                 </div>
               )}

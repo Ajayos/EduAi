@@ -36,7 +36,7 @@ export default function AttendanceManagement() {
       
       const studentsWithAttendance = studentsRes.map(s => ({
         ...s,
-        attendance: Math.floor(Math.random() * 30) + 70,
+        attendance: s.attendance || 0,
       }));
 
       setStudents(studentsWithAttendance);
@@ -213,24 +213,7 @@ export default function AttendanceManagement() {
               </div>
 
               <div className="p-8 lg:p-10 bg-slate-50/50 space-y-8 flex-1 overflow-y-auto">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="bg-white p-6 lg:p-8 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col h-full hover:shadow-md transition-shadow">
-                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                      <Clock size={16} /> Recent History
-                    </h3>
-                    <div className="space-y-4 overflow-y-auto flex-1 pr-2 max-h-[280px]">
-                      {[1, 2, 3, 4].map((i) => (
-                        <div key={i} className="flex flex-col gap-2 p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-emerald-100 hover:bg-emerald-50/50 transition-colors">
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm font-bold text-slate-700">Class Session {i}</span>
-                            <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-md text-[10px] uppercase font-black tracking-wider shadow-sm">Present</span>
-                          </div>
-                          <span className="text-xs text-slate-400 font-medium tracking-wide">March {20 - i}, 2026</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
+                <div className="max-w-xl mx-auto">
                   <form onSubmit={handleUpdateAttendance} className="bg-white p-6 lg:p-8 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col h-full relative overflow-hidden group hover:shadow-md transition-shadow">
                     <h3 className="text-sm font-bold text-emerald-600 uppercase tracking-widest mb-6 flex items-center gap-2 relative z-10">
                       <CheckCircle size={16} /> Log New Entry

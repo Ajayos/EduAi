@@ -16,6 +16,7 @@ import MarksManagement from "./pages/MarksManagement";
 import AttendanceManagement from "./pages/AttendanceManagement";
 import StudentProfiles from "./pages/StudentProfiles";
 import NotificationsPage from "./pages/NotificationsPage";
+import StudentEditor from "./pages/StudentEditor";
 
 export default function App() {
   const { user, token } = useAuthStore();
@@ -47,6 +48,7 @@ export default function App() {
         if (activeTab === "Assignments") return <AssignmentsPage />;
         if (activeTab === "Quizzes") return <QuizPage />;
         if (activeTab === "Flashcards") return <FlashcardPage />;
+        if (activeTab === "Student Editor") return <StudentEditor />;
         if (activeTab === "Approvals") return <VerificationManager />;
         if (activeTab === "Timetable") return <TimetablePage />;
         return <TeacherDashboard setActiveTab={setActiveTab} />;
