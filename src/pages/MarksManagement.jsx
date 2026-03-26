@@ -19,9 +19,11 @@ export default function MarksManagement() {
   const [showAddMarksModal, setShowAddMarksModal] = useState(false);
   const [newMark, setNewMark] = useState({
     subject_id: "",
-    marks: 50,
     semester: 1,
     teacher_id: "",
+    modules: [0,0,0,0,0],
+    internals: [0,0],
+    assignment: 0
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -66,7 +68,18 @@ export default function MarksManagement() {
   const handleAddMarks = async (e) => {
     e.preventDefault();
     try {
-      await api.addMarks({ ...newMark, student_id: selectedStudent.id });
+      const payload = {
+        student_id: selectedStudent.id,
+        subject_id: newMark.subject_id,
+        semester: newMark.semester,
+        teacher_id: newMark.teacher_id,
+        detailed_data: {
+          modules: newMark.modules,
+          internals: newMark.internals,
+          assignment: newMark.assignment
+        }
+      };
+      await api.addMarks(payload);
       setShowAddMarksModal(false);
       fetchData(); // Refresh data
     } catch (err) {
@@ -230,86 +243,108 @@ export default function MarksManagement() {
               </div>
 
               <form onSubmit={handleAddMarks} className="space-y-6">
+                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <TrendingUp className="text-blue-600" size={24} />
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Calculated Score</p>
+                      <p className="text-xl font-black text-slate-900">
+                        {((newMark.modules.reduce((a,b)=>a+b,0) + newMark.internals.reduce((a,b)=>a+b,0) + Number(newMark.assignment)) / 220 * 100).toFixed(1)}%
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">
-                      Subject
-                    </label>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Subject</label>
                     <select
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                      className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700"
                       value={newMark.subject_id}
-                      onChange={(e) =>
-                        setNewMark({ ...newMark, subject_id: e.target.value })
-                      }
+                      onChange={(e) => setNewMark({ ...newMark, subject_id: e.target.value })}
                     >
                       {subjects.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
+                        <option key={s.id} value={s.id}>{s.name}</option>
                       ))}
                     </select>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-2">
-                        Marks (0-100)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        required
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                        value={newMark.marks}
-                        onChange={(e) =>
-                          setNewMark({
-                            ...newMark,
-                            marks: parseInt(e.target.value),
-                          })
-                        }
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-2">
-                        Semester
-                      </label>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Semester</label>
                       <select
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                        className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700"
                         value={newMark.semester}
-                        onChange={(e) =>
-                          setNewMark({
-                            ...newMark,
-                            semester: parseInt(e.target.value),
-                          })
-                        }
+                        onChange={(e) => setNewMark({ ...newMark, semester: parseInt(e.target.value) })}
                       >
                         {semesters.map((s) => (
-                          <option key={s} value={s}>
-                            Sem {s}
-                          </option>
+                          <option key={s} value={s}>Sem {s}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Teacher</label>
+                      <select
+                        className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700"
+                        value={newMark.teacher_id}
+                        onChange={(e) => setNewMark({ ...newMark, teacher_id: e.target.value })}
+                      >
+                        {faculty.map((f) => (
+                          <option key={`${f.role}-${f.id}`} value={f.id}>{f.name}</option>
                         ))}
                       </select>
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">
-                      Assigned By
-                    </label>
-                    <select
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                      value={newMark.teacher_id}
-                      onChange={(e) =>
-                        setNewMark({ ...newMark, teacher_id: e.target.value })
-                      }
-                    >
-                      {faculty.map((f) => (
-                        <option key={`${f.role}-${f.id}`} value={f.id}>
-                          {f.name} ({f.role})
-                        </option>
-                      ))}
-                    </select>
+                  <div className="space-y-4 pt-4 border-t border-slate-100">
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Module Tests (20 Each)</p>
+                      <div className="grid grid-cols-5 gap-2">
+                        {[0,1,2,3,4].map(i => (
+                          <input
+                            key={i}
+                            type="number" min="0" max="20"
+                            className="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-black text-center text-slate-900"
+                            value={newMark.modules[i]}
+                            onChange={(e) => {
+                              const m = [...newMark.modules];
+                              m[i] = Math.min(20, Math.max(0, parseInt(e.target.value) || 0));
+                              setNewMark({...newMark, modules: m});
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="col-span-1">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Internals (50)</p>
+                        <div className="flex gap-2">
+                          {[0,1].map(i => (
+                            <input
+                              key={i}
+                              type="number" min="0" max="50"
+                              className="w-full px-3 py-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-black text-center text-slate-900"
+                              value={newMark.internals[i]}
+                              onChange={(e) => {
+                                const m = [...newMark.internals];
+                                m[i] = Math.min(50, Math.max(0, parseInt(e.target.value) || 0));
+                                setNewMark({...newMark, internals: m});
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      <div className="col-span-1">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Assignment (20)</p>
+                        <input
+                          type="number" min="0" max="20"
+                          className="w-full px-3 py-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-black text-center text-slate-900"
+                          value={newMark.assignment}
+                          onChange={(e) => setNewMark({...newMark, assignment: Math.min(20, Math.max(0, parseInt(e.target.value) || 0))})}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -321,10 +356,10 @@ export default function MarksManagement() {
 
                 <button
                   type="submit"
-                  className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 flex items-center justify-center gap-2"
+                  className="w-full py-5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl font-black shadow-xl shadow-blue-100 flex items-center justify-center gap-2 hover:shadow-2xl hover:-translate-y-1 transition-all"
                 >
-                  <TrendingUp size={20} />
-                  Save Marks
+                  <TrendingUp size={24} />
+                  Complete Grading
                 </button>
               </form>
             </motion.div>

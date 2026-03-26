@@ -48,31 +48,27 @@ export default function StudentProfiles() {
     try {
       setSelectedStudent(student);
       console.log(student);
-      const data = await api.getStudentAnalytics(student.id);
-      
-      const basePoints = student.avgMarks || 70;
-      
-      const detailedMarks = {
-        moduleTests: [
-          Math.floor(basePoints / 5),
-          Math.floor(basePoints / 5),
-          Math.floor(basePoints / 5),
-          Math.floor(basePoints / 5),
-          Math.floor(basePoints / 5)
-        ],
-        internalExams: [
-          Math.floor(basePoints / 2),
-          Math.floor(basePoints / 2)
-        ],
-        assignment: Math.floor(basePoints / 5)
-      };
+      const marksData = data.marks || [];
+      const subjectsWithDetailed = marksData.map(m => {
+        let detailed = {
+          modules: [0,0,0,0,0],
+          internals: [0,0],
+          assignment: 0
+        };
+        if (m.detailed_data) {
+          try {
+            const parsed = JSON.parse(m.detailed_data);
+            detailed = {
+              modules: parsed.modules || [0,0,0,0,0],
+              internals: parsed.internals || [0,0],
+              assignment: parsed.assignment || 0
+            };
+          } catch(e) { console.error("Parse error", e); }
+        }
+        return { ...m, detailed };
+      });
 
-      const totalModules = detailedMarks.moduleTests.reduce((a,b)=>a+b,0);
-      const totalInternals = detailedMarks.internalExams.reduce((a,b)=>a+b,0);
-      const grandTotal = totalModules + totalInternals + detailedMarks.assignment;
-      const calculatedPercentage = ((grandTotal / 220) * 100).toFixed(1);
-
-      setProfileData({ ...data, detailedMarks, totalModules, totalInternals, grandTotal, calculatedPercentage });
+      setProfileData({ ...data, marks: subjectsWithDetailed });
       setShowProfileModal(true);
     } catch (err) {
       console.error(err);
@@ -245,10 +241,42 @@ export default function StudentProfiles() {
                           </div>
                         </div>
                         <div className="space-y-2">
-                          {profileData.detailedMarks.moduleTests.map((m, i) => (
-                            <div key={i} className="flex justify-between items-center text-sm">
-                              <span className="text-slate-500 font-medium">Module {i + 1} (20)</span>
-                              <span className="font-bold text-slate-700">{m}</span>
+                          {profileData.marks.map((subj, sIdx) => (
+                            <div key={subj.subject_id} className="p-6 bg-slate-50/50 rounded-3xl border border-slate-100 hover:border-blue-100 transition-colors">
+                              <div className="flex justify-between items-center mb-4">
+                                <h4 className="font-black text-slate-800 flex items-center gap-2">
+                                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                  {subj.subject}
+                                </h4>
+                                <span className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-black">
+                                  {subj.marks}%
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-5 gap-2">
+                                {subj.detailed.modules.map((m, i) => (
+                                  <div key={i} className="flex flex-col items-center bg-white p-2 rounded-xl border border-slate-100 shadow-sm">
+                                    <span className="text-[9px] font-black text-slate-400 uppercase">Mod {i+1}</span>
+                                    <span className="text-sm font-black text-slate-700">{m}</span>
+                                  </div>
+                                ))}
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4 mt-4">
+                                <div className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
+                                  <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Internals</p>
+                                  <div className="flex justify-between font-black text-slate-700 text-xs">
+                                    <span>{subj.detailed.internals[0]}</span>
+                                    <span className="text-slate-200">|</span>
+                                    <span>{subj.detailed.internals[1]}</span>
+                                  </div>
+                                </div>
+                                <div className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
+                                  <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Assignment</p>
+                                  <div className="text-center font-black text-slate-700 text-xs">
+                                    {subj.detailed.assignment}
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -263,22 +291,20 @@ export default function StudentProfiles() {
                             </div>
                           </div>
                           <div className="space-y-2">
+                            {/* This section now sums up all internals, consider if you want to show per-subject or overall */}
+                            {/* For now, showing a placeholder or total, as per-subject is handled above */}
                             <div className="flex justify-between text-sm">
-                              <span className="text-slate-500">First Internal (50)</span>
-                              <span className="font-bold text-slate-700">{profileData.detailedMarks.internalExams[0]}</span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                              <span className="text-slate-500">Second Internal (50)</span>
-                              <span className="font-bold text-slate-700">{profileData.detailedMarks.internalExams[1]}</span>
+                              <span className="text-slate-500">Total Internals</span>
+                              <span className="font-bold text-slate-700">{profileData.totalInternals}</span>
                             </div>
                           </div>
                         </div>
-                        
+
                         <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm">
                           <div className="flex justify-between items-center">
                             <div>
                               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Assignment</p>
-                              <p className="text-3xl font-black text-slate-800">{profileData.detailedMarks.assignment}<span className="text-lg text-slate-400">/20</span></p>
+                              <p className="text-3xl font-black text-slate-800">{profileData.totalAssignments}<span className="text-lg text-slate-400">/20</span></p>
                             </div>
                             <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center text-purple-500">
                               <BookOpen size={24} />

@@ -35,9 +35,11 @@ export default function StudentEditor() {
   
   const [markData, setMarkData] = useState({
     subject_id: "",
-    marks: 50,
     semester: 1,
     teacher_id: user?.id || "",
+    modules: [0, 0, 0, 0, 0],
+    internals: [0, 0],
+    assignment: 0,
   });
 
   const [assignmentData, setAssignmentData] = useState({
@@ -99,8 +101,19 @@ export default function StudentEditor() {
   const handleAddMarks = async (e) => {
     e.preventDefault();
     try {
-      await api.addMarks({ ...markData, student_id: selectedStudent.id });
-      alert("Marks added successfully!");
+      const payload = {
+        student_id: selectedStudent.id,
+        subject_id: markData.subject_id,
+        semester: markData.semester,
+        teacher_id: markData.teacher_id,
+        detailed_data: {
+          modules: markData.modules,
+          internals: markData.internals,
+          assignment: markData.assignment,
+        }
+      };
+      await api.addMarks(payload);
+      alert("Detailed marks added successfully!");
     } catch (err) {
       alert(err.message || "Failed to add marks");
     }
@@ -294,54 +307,124 @@ export default function StudentEditor() {
 
                   {activeTab === "marks" && (
                     <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
-                      <div className="absolute top-0 right-0 w-40 h-40 bg-indigo-50 rounded-full blur-3xl group-hover:bg-indigo-100 transition-colors"></div>
-                      <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-2 relative z-10">
-                        <TrendingUp className="text-indigo-500" /> Enter Overall Marks
-                      </h3>
-                      <form onSubmit={handleAddMarks} className="space-y-6 relative z-10">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50 rounded-full blur-3xl group-hover:bg-indigo-100/50 transition-colors"></div>
+                      
+                      <div className="flex items-center justify-between mb-8 relative z-10">
+                        <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3">
+                          <Award className="text-indigo-600" size={32} /> Detailed Performance Entry
+                        </h3>
+                        <div className="bg-indigo-600 text-white px-6 py-2 rounded-2xl font-black shadow-lg shadow-indigo-200">
+                          {((markData.modules.reduce((a,b)=>a+b,0) + markData.internals.reduce((a,b)=>a+b,0) + Number(markData.assignment)) / 220 * 100).toFixed(1)}%
+                        </div>
+                      </div>
+
+                      <form onSubmit={handleAddMarks} className="space-y-8 relative z-10">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-6 bg-slate-50/50 rounded-3xl border border-slate-100">
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Subject</label>
+                                <label className="block text-xs font-black text-slate-400 mb-3 uppercase tracking-widest">Select Subject</label>
                                 <select
-                                    className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white hover:border-indigo-200 transition-all font-bold text-slate-700"
+                                    className="w-full px-5 py-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm font-bold text-slate-700"
                                     value={markData.subject_id}
                                     onChange={(e) => setMarkData({...markData, subject_id: e.target.value})}
                                 >
                                     {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                 </select>
                             </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Marks (0-100)</label>
-                                <input
-                                    type="number" min="0" max="100" required
-                                    className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-xl font-black text-slate-900 hover:border-indigo-200 transition-all"
-                                    value={markData.marks}
-                                    onChange={(e) => setMarkData({...markData, marks: parseInt(e.target.value)})}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Semester</label>
-                                <select
-                                    className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white font-bold text-slate-700"
-                                    value={markData.semester}
-                                    onChange={(e) => setMarkData({...markData, semester: parseInt(e.target.value)})}
-                                >
-                                    {[1,2,3,4,5,6,7,8].map(s => <option key={s} value={s}>Sem {s}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Teacher</label>
-                                <select
-                                    className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white font-bold text-slate-700"
-                                    value={markData.teacher_id}
-                                    onChange={(e) => setMarkData({...markData, teacher_id: e.target.value})}
-                                >
-                                    {faculty.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                                </select>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                  <label className="block text-xs font-black text-slate-400 mb-3 uppercase tracking-widest">Semester</label>
+                                  <select
+                                      className="w-full px-5 py-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm font-bold text-slate-700"
+                                      value={markData.semester}
+                                      onChange={(e) => setMarkData({...markData, semester: parseInt(e.target.value)})}
+                                  >
+                                      {[1,2,3,4,5,6,7,8].map(s => <option key={s} value={s}>Sem {s}</option>)}
+                                  </select>
+                              </div>
+                              <div>
+                                  <label className="block text-xs font-black text-slate-400 mb-3 uppercase tracking-widest">Teacher</label>
+                                  <select
+                                      className="w-full px-5 py-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm font-bold text-slate-700"
+                                      value={markData.teacher_id}
+                                      onChange={(e) => setMarkData({...markData, teacher_id: e.target.value})}
+                                  >
+                                      {faculty.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                                  </select>
+                              </div>
                             </div>
                         </div>
-                        <button type="submit" className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-lg shadow-indigo-200 mt-4 hover:bg-indigo-700 hover:-translate-y-1 transition-all">
-                          Save Subject Marks
+
+                        <div className="space-y-8">
+                          {/* Modules Section */}
+                          <div>
+                            <h4 className="text-sm font-black text-slate-900 mb-4 flex items-center gap-2">
+                              <span className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center text-xs">M</span> 
+                              Module Tests <span className="text-slate-400 font-bold">(Out of 20 Each)</span>
+                            </h4>
+                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                              {[0, 1, 2, 3, 4].map((i) => (
+                                <div key={i}>
+                                  <p className="text-[10px] font-bold text-slate-400 mb-1 ml-1 uppercase">Mod {i+1}</p>
+                                  <input
+                                    type="number" min="0" max="20"
+                                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-black text-slate-900"
+                                    value={markData.modules[i]}
+                                    onChange={(e) => {
+                                      const newModules = [...markData.modules];
+                                      newModules[i] = Math.min(20, Math.max(0, parseInt(e.target.value) || 0));
+                                      setMarkData({...markData, modules: newModules});
+                                    }}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Internals Section */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div>
+                              <h4 className="text-sm font-black text-slate-900 mb-4 flex items-center gap-2">
+                                <span className="w-8 h-8 bg-purple-100 text-purple-600 rounded-lg flex items-center justify-center text-xs">I</span> 
+                                Internal Exams <span className="text-slate-400 font-bold">(Out of 50 Each)</span>
+                              </h4>
+                              <div className="grid grid-cols-2 gap-4">
+                                {[0, 1].map((i) => (
+                                  <div key={i}>
+                                    <p className="text-[10px] font-bold text-slate-400 mb-1 ml-1 uppercase">{i === 0 ? "First" : "Second"}</p>
+                                    <input
+                                      type="number" min="0" max="50"
+                                      className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 font-black text-slate-900"
+                                      value={markData.internals[i]}
+                                      onChange={(e) => {
+                                        const newInternals = [...markData.internals];
+                                        newInternals[i] = Math.min(50, Math.max(0, parseInt(e.target.value) || 0));
+                                        setMarkData({...markData, internals: newInternals});
+                                      }}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-black text-slate-900 mb-4 flex items-center gap-2">
+                                <span className="w-8 h-8 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center text-xs">A</span> 
+                                Assignment <span className="text-slate-400 font-bold">(Out of 20)</span>
+                              </h4>
+                              <div>
+                                <p className="text-[10px] font-bold text-slate-400 mb-1 ml-1 uppercase">Final Score</p>
+                                <input
+                                  type="number" min="0" max="20"
+                                  className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-black text-slate-900"
+                                  value={markData.assignment}
+                                  onChange={(e) => setMarkData({...markData, assignment: Math.min(20, Math.max(0, parseInt(e.target.value) || 0))})}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <button type="submit" className="w-full py-5 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-[1.5rem] font-black shadow-xl shadow-indigo-100 mt-4 hover:shadow-2xl hover:-translate-y-1 transition-all flex items-center justify-center gap-3">
+                          <Save size={24} /> Submit Detailed Subject Profile
                         </button>
                       </form>
                     </div>

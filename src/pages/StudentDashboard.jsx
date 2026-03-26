@@ -92,7 +92,24 @@ export default function StudentDashboard({ setActiveTab }) {
           api.getTimetable(user.class, user.semester),
           api.getAchievements(),
         ]);
-      setAnalytics(anaRes);
+      const processedAna = {
+        ...anaRes,
+        marks: (anaRes.marks || []).map(m => {
+          let detailed = { modules: [0,0,0,0,0], internals: [0,0], assignment: 0 };
+          if (m.detailed_data) {
+            try {
+              const parsed = JSON.parse(m.detailed_data);
+              detailed = {
+                modules: parsed.modules || [0,0,0,0,0],
+                internals: parsed.internals || [0,0],
+                assignment: parsed.assignment || 0
+              };
+            } catch(e) { console.error(e); }
+          }
+          return { ...m, detailed };
+        })
+      };
+      setAnalytics(processedAna);
       setAssignments(assignRes);
       setTimetable(timetableRes);
       setAchievements(achievementsRes);
@@ -1027,9 +1044,9 @@ export default function StudentDashboard({ setActiveTab }) {
                     {selectedSubject.marks >= 40 ? "Cleared" : "At Risk"}
                   </p>
                 </div>
-                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                  <p className="text-xs font-bold text-slate-400 uppercase mb-2">
-                    Prediction
+                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex flex-col justify-center">
+                  <p className="text-xs font-bold text-slate-400 uppercase mb-3">
+                    Performance Insight
                   </p>
                   <p
                     className={`text-3xl font-black ${
@@ -1050,6 +1067,45 @@ export default function StudentDashboard({ setActiveTab }) {
                           ? "Needs Improvement"
                           : "At Risk"}
                   </p>
+                </div>
+              </div>
+
+              {/* Detailed Breakdown Section */}
+              <div className="bg-slate-50/50 p-8 rounded-[2.5rem] border border-slate-100 mb-8">
+                <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                  <TrendingUp size={16} /> Granular Breakdown
+                </h4>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  {/* Modules */}
+                  <div className="lg:col-span-2 space-y-4">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Module Tests (20 Each)</p>
+                    <div className="grid grid-cols-5 gap-3">
+                      {selectedSubject.detailed.modules.map((m, i) => (
+                        <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm text-center">
+                          <p className="text-[9px] font-black text-slate-400 uppercase mb-1">M{i+1}</p>
+                          <p className="text-xl font-black text-slate-900">{m}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Internals & Assignment */}
+                  <div className="space-y-4">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Exams & Assignments</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm text-center">
+                        <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Int 1 (50)</p>
+                        <p className="text-xl font-black text-blue-600">{selectedSubject.detailed.internals[0]}</p>
+                      </div>
+                      <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm text-center">
+                        <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Int 2 (50)</p>
+                        <p className="text-xl font-black text-blue-600">{selectedSubject.detailed.internals[1]}</p>
+                      </div>
+                      <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm text-center col-span-2">
+                        <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Assignment (20)</p>
+                        <p className="text-xl font-black text-emerald-600">{selectedSubject.detailed.assignment}</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 

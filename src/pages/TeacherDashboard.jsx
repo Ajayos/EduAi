@@ -669,15 +669,6 @@ export default function TeacherDashboard({ setActiveTab }) {
                       >
                         Attendance
                       </button>
-                      {user?.role === "teacher" && user?.isClassTeacher && (
-                        <button
-                          onClick={() => confirmDelete(student)}
-                          className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                          title="Delete Student"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      )}
                     </div>
                   </td>
                 </tr>

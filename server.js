@@ -99,6 +99,7 @@ db.exec(`
     semester INTEGER,
     marks INTEGER,
     teacher_id INTEGER,
+    detailed_data TEXT,
     FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE,
     FOREIGN KEY(subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
     FOREIGN KEY(teacher_id) REFERENCES teachers(id) ON DELETE CASCADE
@@ -224,6 +225,12 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
+ // Migration: Add detailed_data to marks if not exists
+  const marksColumns = db.prepare("PRAGMA table_info(marks)").all();
+  if (!marksColumns.some(c => c.name === 'detailed_data')) {
+    db.exec("ALTER TABLE marks ADD COLUMN detailed_data TEXT;");
+    console.log("Migration: Added detailed_data column to marks table.");
+  }
 
 // Migration: Add subject_id to flashcards and quizzes if they don't exist
 try {
@@ -853,11 +860,28 @@ app.get("/api/faculty", authenticateToken, (req, res) => {
 });
 
 app.post("/api/marks", authenticateToken, (req, res) => {
-  const { student_id, subject_id, semester, marks, teacher_id } = req.body;
+  const { student_id, subject_id, semester, marks, teacher_id, detailed_data } = req.body;
   const finalTeacherId = teacher_id || req.user.id;
+  
+  // If detailed_data is provided (object), we calculate the total marks
+  let finalMarks = marks;
+  let detailedJson = null;
+
+  if (detailed_data && typeof detailed_data === 'object') {
+    const d = detailed_data;
+    const modulesSum = (d.modules || []).reduce((a, b) => a + (Number(b) || 0), 0);
+    const internalsSum = (d.internals || []).reduce((a, b) => a + (Number(b) || 0), 0);
+    const assignmentScore = Number(d.assignment) || 0;
+    
+    // grandTotal / 220 * 100
+    const grandTotal = modulesSum + internalsSum + assignmentScore;
+    finalMarks = Math.round((grandTotal / 220) * 100);
+    detailedJson = JSON.stringify(detailed_data);
+  }
+
   db.prepare(
-    "INSERT INTO marks (student_id, subject_id, semester, marks, teacher_id) VALUES (?, ?, ?, ?, ?)",
-  ).run(student_id, subject_id, semester, marks, finalTeacherId);
+    "INSERT INTO marks (student_id, subject_id, semester, marks, teacher_id, detailed_data) VALUES (?, ?, ?, ?, ?, ?)",
+  ).run(student_id, subject_id, semester, finalMarks, finalTeacherId, detailedJson);
 
   // Notify student
   const subject = db
@@ -866,9 +890,9 @@ app.post("/api/marks", authenticateToken, (req, res) => {
   const subjectName = subject ? subject.name : `Subject ID ${subject_id}`;
   db.prepare(
     "INSERT INTO notifications (user_id, role, message) VALUES (?, 'student', ?)",
-  ).run(student_id, `New marks added for ${subjectName}: ${marks}`);
+  ).run(student_id, `New marks added for ${subjectName}: ${finalMarks}% (Detailed logged)`);
 
-  res.json({ success: true });
+  res.json({ success: true, marks: finalMarks });
 });
 
 app.get("/api/attendance/:studentId", authenticateToken, (req, res) => {
@@ -1643,7 +1667,7 @@ app.get("/api/analytics/student/:id", authenticateToken, (req, res) => {
   const studentId = req.params.id;
   const marks = db
     .prepare(
-      "SELECT m.marks, s.name as subject, m.subject_id FROM marks m JOIN subjects s ON m.subject_id = s.id WHERE m.student_id = ?",
+      "SELECT m.marks, s.name as subject, m.subject_id, m.detailed_data FROM marks m JOIN subjects s ON m.subject_id = s.id WHERE m.student_id = ?",
     )
     .all(studentId);
 
