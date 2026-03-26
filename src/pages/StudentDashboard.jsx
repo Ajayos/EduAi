@@ -786,14 +786,14 @@ export default function StudentDashboard({ setActiveTab }) {
               >
                 <div className="flex items-center justify-between mb-4">
                   <h4 className="font-bold text-slate-900">{m.subject}</h4>
-                  <span className="text-xs font-bold text-blue-600">92%</span>
+                  <span className="text-xs font-bold text-blue-600">{m.attendance || 0}%</span>
                 </div>
                 <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden mb-4">
-                  <div className="bg-blue-600 h-full w-[92%]"></div>
+                  <div className="bg-blue-600 h-full" style={{ width: `${m.attendance || 0}%` }}></div>
                 </div>
                 <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">
-                  <span>Attended: 23</span>
-                  <span>Total: 25</span>
+                  <span>Attended: {m.attendedClasses || 0}</span>
+                  <span>Total: {m.totalClasses || 0}</span>
                 </div>
                 <div className="flex gap-2">
                   <button

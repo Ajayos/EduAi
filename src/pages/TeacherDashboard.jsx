@@ -203,9 +203,9 @@ export default function TeacherDashboard({ setActiveTab }) {
   const handleUpdateAttendance = async (e) => {
     e.preventDefault();
     try {
-      await api.updateAttendance(selectedStudent.id, attendanceData);
+      await api.addAttendance({ ...attendanceData, student_id: selectedStudent.id });
       setShowAttendanceModal(false);
-      alert("Attendance updated successfully!");
+      alert("Attendance logged successfully!");
       fetchStats();
     } catch (err) {
       alert(err.message);
@@ -331,12 +331,6 @@ export default function TeacherDashboard({ setActiveTab }) {
           value={stats.totalAssignments}
           icon={BookOpen}
           color="orange"
-        />
-        <StatCard
-          title="Avg Attendance"
-          value={`${stats.avgAttendance}%`}
-          icon={CheckCircle}
-          color="emerald"
         />
         <StatCard
           title="At Risk Students"
@@ -1003,25 +997,7 @@ export default function TeacherDashboard({ setActiveTab }) {
 
             <div className="p-8 lg:p-10 bg-slate-50/50 space-y-8 flex-1 overflow-y-auto">
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Recent History */}
-                <div className="bg-white p-6 lg:p-8 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col h-full hover:shadow-md transition-shadow">
-                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                    <Clock size={16} /> Recent History
-                  </h3>
-                  <div className="space-y-4 overflow-y-auto flex-1 pr-2 max-h-[280px]">
-                    {[1, 2, 3, 4].map((i) => (
-                      <div key={i} className="flex flex-col gap-2 p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-emerald-100 hover:bg-emerald-50/50 transition-colors">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-bold text-slate-700">Object Oriented Programming</span>
-                          <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-md text-[10px] uppercase font-black tracking-wider shadow-sm">Present</span>
-                        </div>
-                        <span className="text-xs text-slate-400 font-medium tracking-wide">March {20 - i}, 2026</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
+              <div className="max-w-xl mx-auto flex-1">
                 {/* Log Entry Form */}
                 <form onSubmit={handleUpdateAttendance} className="bg-white p-6 lg:p-8 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col h-full relative overflow-hidden group hover:shadow-md transition-shadow">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-colors"></div>
@@ -1030,6 +1006,16 @@ export default function TeacherDashboard({ setActiveTab }) {
                   </h3>
                   
                   <div className="space-y-6 relative z-10 flex-1">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Subject</label>
+                      <select
+                        className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white hover:border-emerald-200 transition-all font-bold text-slate-700"
+                        value={attendanceData.subject_id}
+                        onChange={(e) => setAttendanceData({ ...attendanceData, subject_id: e.target.value })}
+                      >
+                        {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      </select>
+                    </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Date</label>
                       <input

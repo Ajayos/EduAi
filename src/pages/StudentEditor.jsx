@@ -89,10 +89,10 @@ export default function StudentEditor() {
   const handleUpdateAttendance = async (e) => {
     e.preventDefault();
     try {
-      await api.updateAttendance(selectedStudent.id, attendanceData);
-      alert("Attendance updated successfully!");
+      await api.addAttendance({ ...attendanceData, student_id: selectedStudent.id });
+      alert("Attendance logged successfully!");
     } catch (err) {
-      alert(err.message || "Failed to update attendance");
+      alert(err.message || "Failed to log attendance");
     }
   };
 

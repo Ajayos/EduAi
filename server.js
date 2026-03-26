@@ -517,7 +517,6 @@ app.post("/api/auth/login", (req, res) => {
   // Try Admin
   user = db.prepare("SELECT * FROM admins WHERE username = ?").get(username);
   if (user) detectedRole = "admin";
-  console.log(user, "user", username, password, req.body)
 
   // Try Teacher
   if (!user) {
@@ -978,6 +977,9 @@ app.delete("/api/admin/subjects/:id", authenticateToken, (req, res) => {
 
 // Assignments
 app.get("/api/teacher/subjects", authenticateToken, (req, res) => {
+  if (req.user.role === "admin") {
+    return res.json(db.prepare("SELECT * FROM subjects").all());
+  }
   if (req.user.role !== "teacher") return res.sendStatus(403);
 
   // Get teacher's assigned class and semester
@@ -1661,7 +1663,9 @@ app.get("/api/analytics/student/:id", authenticateToken, (req, res) => {
 
   marks.forEach((m) => {
     const att = subjectWiseAttendance.find((a) => a.subject_id === m.subject_id);
-    m.attendance = att ? Math.round((att.present / att.total) * 100) : 100;
+    m.attendance = att ? Math.round((att.present / att.total) * 100) : 0;
+    m.attendedClasses = att ? att.present : 0;
+    m.totalClasses = att ? att.total : 0;
   });
   const attendance = db
     .prepare("SELECT status FROM attendance WHERE student_id = ?")

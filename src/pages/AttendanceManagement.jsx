@@ -54,9 +54,9 @@ export default function AttendanceManagement() {
   const handleUpdateAttendance = async (e) => {
     e.preventDefault();
     try {
-      await api.updateAttendance(selectedStudent.id, attendanceData);
+      await api.addAttendance({ ...attendanceData, student_id: selectedStudent.id });
       setShowAttendanceModal(false);
-      alert("Attendance updated successfully!");
+      alert("Attendance logged successfully!");
       fetchData();
     } catch (err) {
       alert(err.message);
