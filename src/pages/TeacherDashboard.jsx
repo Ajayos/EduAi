@@ -348,10 +348,9 @@ export default function TeacherDashboard({ setActiveTab }) {
           color="pink"
         />
         <StatCard
-          icon={<CheckCircle size={24} />}
-          label="Avg. Attendance"
+          icon={CheckCircle}
+          title="Avg. Attendance"
           value={`${stats.avgAttendance}%`}
-          subtitle="System Average"
           color="emerald"
         />
       </div>

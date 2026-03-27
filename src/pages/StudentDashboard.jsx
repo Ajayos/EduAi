@@ -38,6 +38,7 @@ import {
   Clock,
   Award,
   Lightbulb,
+  Plus,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -65,8 +66,8 @@ export default function StudentDashboard({ setActiveTab }) {
     fatherNumber: user?.fatherNumber || "",
     motherName: user?.motherName || "",
     motherNumber: user?.motherNumber || "",
-    problemSubjects: user?.problemSubjects || [],
-    problemTopics: user?.problemTopics || [],
+    problemSubjects: (typeof user?.problemSubjects === 'string' ? JSON.parse(user.problemSubjects || '[]') : (user?.problemSubjects || [])),
+    problemTopics: (typeof user?.problemTopics === 'string' ? JSON.parse(user.problemTopics || '[]') : (user?.problemTopics || [])),
   });
   const [targetedResources, setTargetedResources] = useState({
     quizzes: [],
@@ -140,18 +141,24 @@ export default function StudentDashboard({ setActiveTab }) {
       const allQuizzes = await api.getQuizzes();
       const allFlashcards = await api.getFlashcards();
       
-      const probSubjects = profileData.problemSubjects || [];
-      const probTopics = (profileData.problemTopics || []).map(t => t.toLowerCase());
+      const probSubjects = Array.isArray(profileData.problemSubjects) ? profileData.problemSubjects : [];
+      const probTopics = Array.isArray(profileData.problemTopics) ? profileData.problemTopics.map(t => t.toLowerCase()) : [];
+
+      const uniqueQuizzes = Array.from(new Map(allQuizzes
+        .filter(q => 
+          probSubjects.some(s => s.subject === q.subject_name) || 
+          probTopics.some(topic => q.title.toLowerCase().includes(topic))
+        ).map(q => [q.id, q])).values());
+
+      const uniqueFlashcards = Array.from(new Map(allFlashcards
+        .filter(f => 
+          probSubjects.some(s => s.subject === f.subject_name) || 
+          probTopics.some(topic => f.question.toLowerCase().includes(topic))
+        ).map(f => [f.id, f])).values());
 
       setTargetedResources({
-        quizzes: allQuizzes.filter(q => 
-          probSubjects.includes(q.subject_name) || 
-          probTopics.some(topic => q.title.toLowerCase().includes(topic))
-        ),
-        flashcards: allFlashcards.filter(f => 
-          probSubjects.includes(f.subject_name) || 
-          probTopics.some(topic => f.question.toLowerCase().includes(topic))
-        ),
+        quizzes: uniqueQuizzes,
+        flashcards: uniqueFlashcards,
       });
     } catch (err) {
       console.error("Failed to fetch targeted resources", err);
@@ -916,12 +923,13 @@ export default function StudentDashboard({ setActiveTab }) {
               <ShieldCheck className="text-blue-600" /> Subject Confidence Tracking
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {(analytics.marks || []).map((subject) => {
-                const confidenceObj = (profileData.problemSubjects || []).find(s => s.subject === subject.subject);
+              {(analytics.marks || []).map((subject, idx) => {
+                const probSubjects = Array.isArray(profileData.problemSubjects) ? profileData.problemSubjects : [];
+                const confidenceObj = probSubjects.find(s => s.subject === subject.subject);
                 const rating = confidenceObj ? confidenceObj.confidence : 5; // Default to 5 if not in problem list
 
                 return (
-                  <div key={subject.subject_id || subject.subject} className="p-6 bg-slate-50 rounded-3xl border border-slate-100 flex items-center justify-between">
+                  <div key={`${subject.subject_id || subject.subject}-${idx}`} className="p-6 bg-slate-50 rounded-3xl border border-slate-100 flex items-center justify-between">
                     <div>
                       <p className="font-bold text-slate-900">{subject.subject}</p>
                       <p className="text-xs text-slate-500">How confident are you?</p>
@@ -931,7 +939,7 @@ export default function StudentDashboard({ setActiveTab }) {
                         <button
                           key={star}
                           onClick={() => {
-                            const current = profileData.problemSubjects || [];
+                            const current = Array.isArray(profileData.problemSubjects) ? profileData.problemSubjects : [];
                             let updated;
                             if (star < 5) {
                               const existingIdx = current.findIndex(s => s.subject === subject.subject);
@@ -1227,8 +1235,8 @@ export default function StudentDashboard({ setActiveTab }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {analytics.marks.map((m) => (
-                    <tr key={m.subject_id || m.subject} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-0 group cursor-pointer" onClick={() => setSelectedSubject(m)}>
+                  {analytics.marks.map((m, idx) => (
+                    <tr key={`${m.subject_id || m.subject}-${idx}`} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-0 group cursor-pointer" onClick={() => setSelectedSubject(m)}>
                       <td className="px-8 py-6">
                         <div className="flex items-center gap-4">
                           <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center font-bold">
