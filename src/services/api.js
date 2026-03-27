@@ -208,4 +208,5 @@ export const api = {
     request(`/student/assignments/${id}/complete`, { method: "POST" }),
   updateStudentProfile: (data) =>
     request(`/student/profile`, { method: "PUT", body: JSON.stringify(data) }),
+  getTeacherStudentConfidence: () => request("/teacher/student-confidence"),
 };

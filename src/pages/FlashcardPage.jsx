@@ -98,9 +98,9 @@ export default function FlashcardPage() {
 
     try {
       if (editingCard) {
-        await api.updateFlashcard(editingCard.id, newFlashcard);
+        await api.updateFlashcard(editingCard.id, { ...newFlashcard, student_ids: newFlashcard.student_ids.length > 0 ? newFlashcard.student_ids : [null] });
       } else {
-        await api.createFlashcard(newFlashcard);
+        await api.createFlashcard({ ...newFlashcard, student_ids: newFlashcard.student_ids.length > 0 ? newFlashcard.student_ids : [null] });
       }
       setShowAddModal(false);
       setEditingCard(null);

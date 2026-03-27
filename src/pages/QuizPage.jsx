@@ -113,9 +113,9 @@ export default function QuizPage() {
     // Final Submission
     try {
       if (editingQuiz) {
-        await api.updateQuiz(editingQuiz.id, newQuiz);
+        await api.updateQuiz(editingQuiz.id, { ...newQuiz, student_ids: newQuiz.student_ids.length > 0 ? newQuiz.student_ids : [null] });
       } else {
-        await api.createQuiz(newQuiz);
+        await api.createQuiz({ ...newQuiz, student_ids: newQuiz.student_ids.length > 0 ? newQuiz.student_ids : [null] });
       }
       setShowAddModal(false);
       setEditingQuiz(null);

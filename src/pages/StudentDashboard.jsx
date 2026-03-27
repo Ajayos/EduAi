@@ -36,7 +36,8 @@ import {
   ShieldCheck,
   Download,
   Clock,
-  Award
+  Award,
+  Lightbulb,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -536,45 +537,6 @@ export default function StudentDashboard({ setActiveTab }) {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Specific topics you're struggling with</label>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {(profileData.problemTopics || []).map((topic, idx) => (
-                    <span key={idx} className="bg-blue-100 text-blue-700 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2">
-                      {topic}
-                      <button type="button" onClick={() => handleRemoveProblemTopic(topic)}>
-                        <X size={14} />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    id="newTopicInput"
-                    placeholder="Add a difficult topic..."
-                    className="flex-1 bg-slate-100 px-4 py-2 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-400"
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleAddProblemTopic(e.target.value);
-                        e.target.value = '';
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const input = document.getElementById('newTopicInput');
-                      handleAddProblemTopic(input.value);
-                      input.value = '';
-                    }}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold"
-                  >
-                    Add
-                  </button>
-                </div>
-              </div>
             </div>
 
             {analytics.problem_subjects_advice?.length > 0 && (
@@ -823,7 +785,7 @@ export default function StudentDashboard({ setActiveTab }) {
             </div>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={analytics.cgpaTrend}>
+                <LineChart data={analytics.cgpaTrend}>
                   <CartesianGrid
                     strokeDasharray="3 3"
                     vertical={false}
@@ -837,28 +799,22 @@ export default function StudentDashboard({ setActiveTab }) {
                   />
                   <YAxis stroke="#94a3b8" fontSize={12} domain={[0, 10]} />
                   <Tooltip
-                    cursor={{ fill: "#f8fafc" }}
+                    cursor={{ stroke: '#3b82f6', strokeWidth: 2 }}
                     contentStyle={{
                       borderRadius: "20px",
                       border: "none",
                       boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1)",
                     }}
                   />
-                  <Bar dataKey="cgpa" fill="#3b82f6" radius={[10, 10, 0, 0]}>
-                    {analytics.cgpaTrend.map((entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={
-                          entry.cgpa >= 8
-                            ? "#10b981"
-                            : entry.cgpa >= 6
-                              ? "#3b82f6"
-                              : "#f43f5e"
-                        }
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
+                  <Line 
+                    type="monotone" 
+                    dataKey="cgpa" 
+                    stroke="#3b82f6" 
+                    strokeWidth={4} 
+                    dot={{ r: 6, fill: '#3b82f6', strokeWidth: 2, stroke: '#fff' }}
+                    activeDot={{ r: 8, shadow: '0 0 20px rgba(59, 130, 246, 0.5)' }}
+                  />
+                </LineChart>
               </ResponsiveContainer>
             </div>
           </div>
@@ -870,13 +826,138 @@ export default function StudentDashboard({ setActiveTab }) {
           <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-[2.5rem] text-white shadow-xl italic relative overflow-hidden">
             <div className="relative z-10">
               <h3 className="text-2xl font-black mb-2 flex items-center gap-2">
-                <BrainCircuit size={28} /> Personalized Learning Support
+                <BrainCircuit size={28} /> Advanced Academic Support
               </h3>
               <p className="text-blue-100 font-medium max-w-xl">
-                We've curated these resources specifically for the subjects and topics you're struggling with. Focus on these to improve your performance!
+                Identify topics you find challenging. Our system will generate personalized notes, quizzes, and flashcards to help you master them.
               </p>
             </div>
             <Sparkles className="absolute top-1/2 right-8 -translate-y-1/2 w-24 h-24 text-white/10" />
+          </div>
+
+          {/* Big Tab: Difficult Topics / Struggles */}
+          <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+            <div className="flex items-center justify-between mb-8">
+              <h4 className="text-xl font-black text-slate-900 flex items-center gap-3">
+                <Target className="text-pink-500" size={28} /> Current Academic Struggles
+              </h4>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  id="tabTopicInput"
+                  placeholder="What are you struggling with?"
+                  className="px-6 py-3 bg-slate-100 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 w-64"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddProblemTopic(e.target.value);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    const input = document.getElementById('tabTopicInput');
+                    handleAddProblemTopic(input.value);
+                    input.value = '';
+                  }}
+                  className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-blue-700 transition-all flex items-center gap-2"
+                >
+                  <Plus size={20} /> Add Topic
+                </button>
+              </div>
+            </div>
+
+            {profileData.problemTopics?.length === 0 ? (
+              <div className="py-20 text-center bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200">
+                <BrainCircuit className="mx-auto text-slate-300 mb-4" size={48} />
+                <p className="text-slate-500 font-bold">No active struggles reported yet.</p>
+                <p className="text-slate-400 text-sm">Add topics like "Linear Algebra" or "React Hooks" above.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {profileData.problemTopics.map((topic, idx) => (
+                  <motion.div
+                    key={idx}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="p-8 bg-gradient-to-br from-white to-slate-50 rounded-[2rem] border border-slate-200 shadow-sm hover:border-blue-300 transition-all relative group"
+                  >
+                    <button
+                      onClick={() => handleRemoveProblemTopic(topic)}
+                      className="absolute top-4 right-4 p-2 bg-red-50 text-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500 hover:text-white"
+                    >
+                      <X size={16} />
+                    </button>
+                    <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl w-fit mb-4">
+                      <BookOpen size={24} />
+                    </div>
+                    <h5 className="text-xl font-bold text-slate-900 mb-2">{topic}</h5>
+                    <div className="flex items-center gap-2 text-slate-500 text-xs font-bold uppercase">
+                      <Sparkles size={14} className="text-yellow-500" /> Improvement Plan Active
+                    </div>
+                    <div className="mt-6 pt-6 border-t border-slate-100">
+                      <button 
+                        onClick={() => setActiveTab("Flashcards")}
+                        className="w-full py-3 bg-white text-blue-600 border border-blue-200 rounded-xl font-bold text-sm hover:bg-blue-50 transition-all"
+                      >
+                        View Study Notes
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Subject Confidence Section */}
+          <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+            <h4 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
+              <ShieldCheck className="text-blue-600" /> Subject Confidence Tracking
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {(analytics.marks || []).map((subject) => {
+                const confidenceObj = (profileData.problemSubjects || []).find(s => s.subject === subject.subject);
+                const rating = confidenceObj ? confidenceObj.confidence : 5; // Default to 5 if not in problem list
+
+                return (
+                  <div key={subject.subject_id || subject.subject} className="p-6 bg-slate-50 rounded-3xl border border-slate-100 flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-slate-900">{subject.subject}</p>
+                      <p className="text-xs text-slate-500">How confident are you?</p>
+                    </div>
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          onClick={() => {
+                            const current = profileData.problemSubjects || [];
+                            let updated;
+                            if (star < 5) {
+                              const existingIdx = current.findIndex(s => s.subject === subject.subject);
+                              if (existingIdx >= 0) {
+                                updated = [...current];
+                                updated[existingIdx] = { subject: subject.subject, confidence: star };
+                              } else {
+                                updated = [...current, { subject: subject.subject, confidence: star }];
+                              }
+                            } else {
+                              updated = current.filter(s => s.subject !== subject.subject);
+                            }
+                            const newProfileData = { ...profileData, problemSubjects: updated };
+                            setProfileData(newProfileData);
+                            api.updateStudentProfile(newProfileData).then(fetchTargetedResources);
+                          }}
+                          className={`p-1 transition-all ${star <= rating ? "text-yellow-400" : "text-slate-300"}`}
+                        >
+                          <Star size={20} fill={star <= rating ? "currentColor" : "none"} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -887,7 +968,7 @@ export default function StudentDashboard({ setActiveTab }) {
               </h4>
               {targetedResources.quizzes.length === 0 ? (
                 <div className="p-12 text-center bg-white rounded-3xl border border-dashed border-slate-200 text-slate-400">
-                  No specific quizzes recommended at the moment.
+                  Select subjects with low confidence to see recommendations.
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-4">
@@ -929,7 +1010,7 @@ export default function StudentDashboard({ setActiveTab }) {
               </h4>
               {targetedResources.flashcards.length === 0 ? (
                 <div className="p-12 text-center bg-white rounded-3xl border border-dashed border-slate-200 text-slate-400">
-                  No specific summaries recommended at the moment.
+                  Add difficult topics in your profile to see summaries.
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-4">
@@ -1147,7 +1228,7 @@ export default function StudentDashboard({ setActiveTab }) {
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {analytics.marks.map((m) => (
-                    <tr key={m.subject} className="group hover:bg-slate-50/50 transition-all cursor-pointer" onClick={() => setSelectedSubject(m)}>
+                    <tr key={m.subject_id || m.subject} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-0 group cursor-pointer" onClick={() => setSelectedSubject(m)}>
                       <td className="px-8 py-6">
                         <div className="flex items-center gap-4">
                           <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center font-bold">

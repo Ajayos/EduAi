@@ -74,6 +74,8 @@ export default function TeacherDashboard({ setActiveTab }) {
   const [assignmentAnalytics, setAssignmentAnalytics] = useState([]);
   const [quizAnalytics, setQuizAnalytics] = useState([]);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [confidenceData, setConfidenceData] = useState([]);
+  const [showConfidence, setShowConfidence] = useState(false);
 
   const classes = [
     "SOE",
@@ -110,6 +112,7 @@ export default function TeacherDashboard({ setActiveTab }) {
       api.getFaculty(),
       api.getAssignmentAnalytics(),
       api.getQuizAnalytics(),
+      api.getTeacherStudentConfidence(),
     ]).then(
       ([
         students,
@@ -118,11 +121,13 @@ export default function TeacherDashboard({ setActiveTab }) {
         facultyRes,
         assignAnalytics,
         quizAnalyticsRes,
+        confData,
       ]) => {
         setSubjects(subjectsRes);
         setFaculty(facultyRes);
         setAssignmentAnalytics(assignAnalytics);
         setQuizAnalytics(quizAnalyticsRes);
+        setConfidenceData(confData);
         if (subjectsRes.length > 0)
           setNewMark((prev) => ({ ...prev, subject_id: subjectsRes[0].id }));
         if (facultyRes.length > 0)
@@ -416,36 +421,96 @@ export default function TeacherDashboard({ setActiveTab }) {
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-8 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden">
-          <div className="relative z-10">
-            <div className="flex items-center gap-3 mb-6">
-              <BrainCircuit className="w-8 h-8" />
-              <h3 className="text-xl font-bold">Faculty Insights</h3>
+        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center gap-4 mb-6">
+            <div className={`p-4 rounded-2xl transition-all ${showConfidence ? "bg-amber-600 text-white" : "bg-amber-50 text-amber-600"}`}>
+              <Star size={32} />
             </div>
-            <div className="space-y-4">
-              <div className="bg-white/10 backdrop-blur-md p-5 rounded-3xl border border-white/20">
-                <p className="text-sm font-medium opacity-80 mb-1">
-                  Performance Alert
-                </p>
-                <p className="text-lg font-bold">
-                  {stats.atRiskStudents} students need attention in Computer
-                  Science.
-                </p>
-              </div>
-              <div className="bg-white/10 backdrop-blur-md p-5 rounded-3xl border border-white/20">
-                <p className="text-sm font-medium opacity-80 mb-1">
-                  Peer Learning Opportunity
-                </p>
-                <p className="text-md">
-                  Top performers in AI can assist the bottom 10% in the upcoming
-                  workshop.
-                </p>
-              </div>
+            <div>
+              <h4 className="font-bold text-slate-900">Student Support</h4>
+              <p className="text-xs text-slate-500">Monitor student confidence</p>
             </div>
           </div>
-          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+          <button
+            onClick={() => {
+              setShowConfidence(!showConfidence);
+              if (!showConfidence) setShowAnalytics(false);
+            }}
+            className={`w-full py-4 rounded-2xl font-bold transition-all ${showConfidence ? "bg-amber-600 text-white shadow-lg shadow-amber-200" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+          >
+            {showConfidence ? "Close Support View" : "Review Confidence"}
+          </button>
         </div>
       </div>
+
+      {showConfidence && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm"
+        >
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h3 className="text-2xl font-black text-slate-900">Student Confidence Analysis</h3>
+              <p className="text-slate-500">Identify students who need specialized help in specific subjects</p>
+            </div>
+            <Star className="text-amber-400 fill-amber-400" size={32} />
+          </div>
+
+          {confidenceData.length === 0 ? (
+            <div className="py-20 text-center bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+              <Users className="mx-auto text-slate-300 mb-4" size={48} />
+              <p className="text-slate-500">No student confidence data available yet.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {confidenceData.map((student) => (
+                <div key={student.id} className="p-6 bg-slate-50 rounded-3xl border border-slate-100 border-l-4 border-l-amber-400">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center font-bold text-slate-600 border border-slate-200">
+                      {student.name.charAt(0)}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-900">{student.name}</h4>
+                      <p className="text-[10px] text-slate-400 uppercase tracking-widest">{student.class} • Sem {student.semester}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {student.problemSubjects?.length === 0 ? (
+                      <p className="text-xs text-emerald-600 font-bold bg-emerald-50 p-3 rounded-2xl text-center">Highly confident in all subjects</p>
+                    ) : (
+                      student.problemSubjects.map((ps, idx) => (
+                        <div key={idx} className="bg-white p-3 rounded-2xl border border-slate-100 flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-700">{ps.subject}</span>
+                          <div className="flex gap-0.5">
+                            {[1, 2, 3, 4, 5].map((s) => (
+                              <Star key={s} size={10} fill={s <= ps.confidence ? "#fbbf24" : "none"} className={s <= ps.confidence ? "text-amber-400" : "text-slate-300"} />
+                            ))}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {student.problemTopics?.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-slate-200">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Struggling with:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {student.problemTopics.map((topic, tidx) => (
+                          <span key={tidx} className="px-2 py-1 bg-blue-50 text-blue-600 rounded-lg text-[9px] font-bold">
+                            {topic}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </motion.div>
+      )}
 
       {showAnalytics && (
         <motion.div
