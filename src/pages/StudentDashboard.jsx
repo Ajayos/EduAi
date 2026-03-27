@@ -65,6 +65,11 @@ export default function StudentDashboard({ setActiveTab }) {
     motherName: user?.motherName || "",
     motherNumber: user?.motherNumber || "",
     problemSubjects: user?.problemSubjects || [],
+    problemTopics: user?.problemTopics || [],
+  });
+  const [targetedResources, setTargetedResources] = useState({
+    quizzes: [],
+    flashcards: [],
   });
 
   useEffect(() => {
@@ -125,6 +130,30 @@ export default function StudentDashboard({ setActiveTab }) {
       }
 
       setLoading(false);
+      fetchTargetedResources();
+    }
+  };
+
+  const fetchTargetedResources = async () => {
+    try {
+      const allQuizzes = await api.getQuizzes();
+      const allFlashcards = await api.getFlashcards();
+      
+      const probSubjects = profileData.problemSubjects || [];
+      const probTopics = (profileData.problemTopics || []).map(t => t.toLowerCase());
+
+      setTargetedResources({
+        quizzes: allQuizzes.filter(q => 
+          probSubjects.includes(q.subject_name) || 
+          probTopics.some(topic => q.title.toLowerCase().includes(topic))
+        ),
+        flashcards: allFlashcards.filter(f => 
+          probSubjects.includes(f.subject_name) || 
+          probTopics.some(topic => f.question.toLowerCase().includes(topic))
+        ),
+      });
+    } catch (err) {
+      console.error("Failed to fetch targeted resources", err);
     }
   };
 
@@ -213,9 +242,36 @@ export default function StudentDashboard({ setActiveTab }) {
     setProfileData(newProfileData);
     try {
       await api.updateStudentProfile(newProfileData);
-      updateUser(newProfileData);
+      fetchTargetedResources();
     } catch (err) {
       console.error("Failed to update problem subjects", err);
+    }
+  };
+
+  const handleAddProblemTopic = async (topic) => {
+    if (!topic || !topic.trim()) return;
+    const updated = [...(profileData.problemTopics || []), topic.trim()];
+    const newProfileData = { ...profileData, problemTopics: updated };
+    setProfileData(newProfileData);
+    try {
+      await api.updateStudentProfile(newProfileData);
+      updateUser(newProfileData);
+      fetchTargetedResources();
+    } catch (err) {
+      console.error("Failed to update problem topics", err);
+    }
+  };
+
+  const handleRemoveProblemTopic = async (topic) => {
+    const updated = (profileData.problemTopics || []).filter(t => t !== topic);
+    const newProfileData = { ...profileData, problemTopics: updated };
+    setProfileData(newProfileData);
+    try {
+      await api.updateStudentProfile(newProfileData);
+      updateUser(newProfileData);
+      fetchTargetedResources();
+    } catch (err) {
+      console.error("Failed to update problem topics", err);
     }
   };
 
@@ -283,13 +339,14 @@ export default function StudentDashboard({ setActiveTab }) {
               <p className="text-slate-400 text-sm font-bold uppercase tracking-wider">
                 Attendance Rate
               </p>
-              <div className="flex items-baseline gap-2">
                 <span
                   className={`text-4xl font-black ${analytics.attendanceRate < 75 ? "text-orange-400" : "text-emerald-400"}`}
                 >
                   {analytics.attendanceRate.toFixed(1)}%
                 </span>
-              </div>
+                <span className="text-slate-500 font-bold ml-1">
+                  ({analytics.attendedClasses || 0}/{analytics.totalClasses || 0})
+                </span>
               <p className="text-xs text-slate-400">
                 {analytics.attendanceRate < 75
                   ? "Below recommended 75%"
@@ -364,6 +421,7 @@ export default function StudentDashboard({ setActiveTab }) {
         {[
           "Overview",
           "Profile",
+          "Learning Support",
           "Attendance",
           "Performance",
           "Timetable",
@@ -479,21 +537,43 @@ export default function StudentDashboard({ setActiveTab }) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Subjects you have difficulty with</label>
-                <div className="flex flex-wrap gap-2 mt-2">                  {analytics.marks.map((m) => (
-                    <button
-                      key={m.subject_id}
-                      type="button"
-                      onClick={() => handleToggleProblemSubject(m.subject)}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                        (profileData.problemSubjects || []).includes(m.subject)
-                          ? "bg-red-500 text-white shadow-lg shadow-red-100"
-                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                      }`}
-                    >
-                      {m.subject}
-                    </button>
-                  ))}</div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Specific topics you're struggling with</label>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {(profileData.problemTopics || []).map((topic, idx) => (
+                    <span key={idx} className="bg-blue-100 text-blue-700 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2">
+                      {topic}
+                      <button type="button" onClick={() => handleRemoveProblemTopic(topic)}>
+                        <X size={14} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    id="newTopicInput"
+                    placeholder="Add a difficult topic..."
+                    className="flex-1 bg-slate-100 px-4 py-2 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-400"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddProblemTopic(e.target.value);
+                        e.target.value = '';
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const input = document.getElementById('newTopicInput');
+                      handleAddProblemTopic(input.value);
+                      input.value = '';
+                    }}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold"
+                  >
+                    Add
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -785,6 +865,100 @@ export default function StudentDashboard({ setActiveTab }) {
         </>
       )}
 
+      {activeSubTab === "Learning Support" && (
+        <div className="space-y-8">
+          <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-[2.5rem] text-white shadow-xl italic relative overflow-hidden">
+            <div className="relative z-10">
+              <h3 className="text-2xl font-black mb-2 flex items-center gap-2">
+                <BrainCircuit size={28} /> Personalized Learning Support
+              </h3>
+              <p className="text-blue-100 font-medium max-w-xl">
+                We've curated these resources specifically for the subjects and topics you're struggling with. Focus on these to improve your performance!
+              </p>
+            </div>
+            <Sparkles className="absolute top-1/2 right-8 -translate-y-1/2 w-24 h-24 text-white/10" />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Targeted Quizzes */}
+            <div className="space-y-4">
+              <h4 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Target className="text-blue-600" /> Recommended Quizzes
+              </h4>
+              {targetedResources.quizzes.length === 0 ? (
+                <div className="p-12 text-center bg-white rounded-3xl border border-dashed border-slate-200 text-slate-400">
+                  No specific quizzes recommended at the moment.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4">
+                  {targetedResources.quizzes.map((quiz) => (
+                    <motion.div
+                      key={quiz.id}
+                      whileHover={{ x: 5 }}
+                      className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center justify-between group"
+                    >
+                      <div>
+                        <p className="text-[10px] font-bold text-blue-600 uppercase mb-1">{quiz.subject_name}</p>
+                        <h5 className="font-bold text-slate-900">{quiz.title}</h5>
+                        <div className="flex items-center gap-2 mt-2">
+                           <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                             quiz.level === 'Advanced' ? 'bg-red-50 text-red-600' : 
+                             quiz.level === 'Intermediate' ? 'bg-orange-50 text-orange-600' : 
+                             'bg-emerald-50 text-emerald-600'
+                           }`}>
+                             {quiz.level || 'Beginner'}
+                           </span>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => setActiveTab("Quizzes")}
+                        className="p-3 bg-blue-50 text-blue-600 rounded-2xl group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm"
+                      >
+                        <ChevronRight size={20} />
+                      </button>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Targeted Flashcards */}
+            <div className="space-y-4">
+              <h4 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Lightbulb className="text-yellow-500" /> Topic Summaries (Flashcards)
+              </h4>
+              {targetedResources.flashcards.length === 0 ? (
+                <div className="p-12 text-center bg-white rounded-3xl border border-dashed border-slate-200 text-slate-400">
+                  No specific summaries recommended at the moment.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4">
+                  {targetedResources.flashcards.map((card) => (
+                    <motion.div
+                      key={card.id}
+                      whileHover={{ x: 5 }}
+                      className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center justify-between group"
+                    >
+                      <div className="flex-1 min-w-0 pr-4">
+                        <p className="text-[10px] font-bold text-orange-500 uppercase mb-1">{card.subject_name}</p>
+                        <h5 className="font-bold text-slate-900 truncate">{card.question}</h5>
+                        <p className="text-[10px] text-slate-400 mt-1 line-clamp-1">{card.answer}</p>
+                      </div>
+                      <button 
+                        onClick={() => setActiveTab("Flashcards")}
+                        className="p-3 bg-orange-50 text-orange-600 rounded-2xl group-hover:bg-orange-600 group-hover:text-white transition-all shadow-sm"
+                      >
+                        <ChevronRight size={20} />
+                      </button>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeSubTab === "Attendance" && (() => {
         const grouped = (attendanceLogs || []).reduce((acc, log) => {
           const key = log.subject || `Subject ${log.subject_id}`;
@@ -819,9 +993,10 @@ export default function StudentDashboard({ setActiveTab }) {
               ) : (
                 <div className="space-y-4">
                   {Object.entries(grouped).map(([subjectName, {logs, subject_id}]) => {
-                    const total = logs.length;
-                    const present = logs.filter(l => l.status === "Present" || l.status === "Late").length;
-                    const rate = total > 0 ? Math.round((present / total) * 100) : 0;
+                    const subjectStat = analytics.marks?.find(m => m.subject === subjectName || m.subject_id === subject_id);
+                    const total = subjectStat?.totalClasses || logs.length;
+                    const present = subjectStat?.attendedClasses || logs.filter(l => l.status === "Present" || l.status === "Late").length;
+                    const rate = subjectStat?.attendance ?? (total > 0 ? Math.round((present / total) * 100) : 0);
                     return (
                       <div key={subjectName} className="bg-slate-50 rounded-3xl border border-slate-100 overflow-hidden">
                         <div className="flex items-center justify-between px-6 py-4">
@@ -838,7 +1013,9 @@ export default function StudentDashboard({ setActiveTab }) {
                             <div className="w-20 bg-slate-200 h-2 rounded-full overflow-hidden">
                               <div className={`h-full ${rate >= 75 ? "bg-emerald-500" : "bg-orange-500"}`} style={{ width: `${rate}%` }} />
                             </div>
-                            <span className={`text-xs font-black ${rate >= 75 ? "text-emerald-600" : "text-orange-600"}`}>{rate}%</span>
+                            <span className={`text-xl font-black ${rate >= 75 ? "text-emerald-600" : "text-orange-600"}`}>
+                              {rate}% ({present}/{total})
+                            </span>
                           </div>
                         </div>
                         <div className="border-t border-slate-100 divide-y divide-slate-100">

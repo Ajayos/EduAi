@@ -145,10 +145,14 @@ export default function TeacherDashboard({ setActiveTab }) {
           achievements: s.achievements || 0,
         }));
 
+        const avgAttendance = students.length > 0 
+          ? students.reduce((acc, s) => acc + (s.attendance || 0), 0) / students.length 
+          : 0;
+
         setStats({
           totalStudents: students.length,
           totalAssignments: assignments.length,
-          avgAttendance: 85.5,
+          avgAttendance: Math.round(avgAttendance),
           atRiskStudents: studentPerformance.filter((s) => s.avgMarks < 50)
             .length,
           classDistribution: chartData,
@@ -337,6 +341,13 @@ export default function TeacherDashboard({ setActiveTab }) {
           value={stats.atRiskStudents}
           icon={AlertTriangle}
           color="pink"
+        />
+        <StatCard
+          icon={<CheckCircle size={24} />}
+          label="Avg. Attendance"
+          value={`${stats.avgAttendance}%`}
+          subtitle="System Average"
+          color="emerald"
         />
       </div>
 
@@ -622,8 +633,8 @@ export default function TeacherDashboard({ setActiveTab }) {
                         style={{ width: `${student.attendance}%` }}
                       ></div>
                     </div>
-                    <p className="text-[10px] font-bold text-slate-400 mt-1">
-                      {student.attendance}% Attendance
+                    <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">
+                      {student.attendance}% ({student.attendedClasses}/{student.totalClasses})
                     </p>
                   </td>
                   <td className="px-8 py-6">

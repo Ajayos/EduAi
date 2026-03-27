@@ -44,6 +44,7 @@ export default function QuizPage() {
     title: "",
     subject_id: "",
     student_ids: [],
+    level: "Beginner",
     questions: [
       {
         text: "",
@@ -123,6 +124,7 @@ export default function QuizPage() {
         title: "",
         subject_id: subjects[0]?.id ? String(subjects[0].id) : "",
         student_ids: [],
+        level: "Beginner",
         questions: [{ text: "", options: [{ text: "", isCorrect: true }, { text: "", isCorrect: false }] }],
       });
       fetchQuizzes();
@@ -180,6 +182,7 @@ export default function QuizPage() {
       title: quiz.title,
       subject_id: String(quiz.subject_id),
       student_ids: quiz.student_ids || [],
+      level: quiz.level || "Beginner",
       questions: JSON.parse(quiz.questions),
     });
     setStep(1);
@@ -462,8 +465,19 @@ export default function QuizPage() {
                 className="bg-white p-6 rounded-[2.5rem] border border-slate-200 shadow-sm hover:shadow-xl transition-all group relative"
               >
                 <div className="flex items-start justify-between mb-6">
-                  <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl group-hover:scale-110 transition-transform">
-                    <BrainCircuit size={32} />
+                  <div className="flex flex-col gap-2">
+                    <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl group-hover:scale-110 transition-transform w-fit">
+                      <BrainCircuit size={32} />
+                    </div>
+                    {quiz.level && (
+                      <span className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
+                        quiz.level === 'Advanced' ? 'bg-red-100 text-red-600' : 
+                        quiz.level === 'Intermediate' ? 'bg-orange-100 text-orange-600' : 
+                        'bg-emerald-100 text-emerald-600'
+                      }`}>
+                        {quiz.level}
+                      </span>
+                    )}
                   </div>
                   <div className="text-right">
                     <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider block mb-1">
@@ -600,6 +614,22 @@ export default function QuizPage() {
                               {s.name} ({s.class} • Sem {s.semester} • Year {s.year || Math.ceil(s.semester / 2)})
                             </option>
                           ))}
+                        </select>
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-sm font-bold text-slate-700 mb-2">
+                          Difficulty Level
+                        </label>
+                        <select
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                          value={newQuiz.level}
+                          onChange={(e) =>
+                            setNewQuiz({ ...newQuiz, level: e.target.value })
+                          }
+                        >
+                          <option value="Beginner">Beginner</option>
+                          <option value="Intermediate">Intermediate</option>
+                          <option value="Advanced">Advanced</option>
                         </select>
                       </div>
                     </div>

@@ -232,19 +232,57 @@ db.exec(`
     console.log("Migration: Added detailed_data column to marks table.");
   }
 
-// Migration: Add subject_id to flashcards and quizzes if they don't exist
-try {
-  db.prepare("ALTER TABLE flashcards ADD COLUMN subject_id INTEGER").run();
-} catch (e) {}
-try {
-  db.prepare("ALTER TABLE quizzes ADD COLUMN subject_id INTEGER").run();
-} catch (e) {}
-try {
+  // Migration: Add student profile columns to students
+  try {
+    db.prepare("ALTER TABLE students ADD COLUMN tenthMarks REAL").run();
+  } catch (e) {}
+  try {
+    db.prepare("ALTER TABLE students ADD COLUMN twelfthMarks REAL").run();
+  } catch (e) {}
+  try {
+    db.prepare("ALTER TABLE students ADD COLUMN fatherName TEXT").run();
+  } catch (e) {}
+  try {
+    db.prepare("ALTER TABLE students ADD COLUMN motherName TEXT").run();
+  } catch (e) {}
+  try {
+    db.prepare("ALTER TABLE students ADD COLUMN fatherNumber TEXT").run();
+  } catch (e) {}
+  try {
+    db.prepare("ALTER TABLE students ADD COLUMN motherNumber TEXT").run();
+  } catch (e) {}
+  try {
+    db.prepare("ALTER TABLE students ADD COLUMN problemSubjects TEXT").run();
+  } catch (e) {}
+  try {
+    db.prepare("ALTER TABLE students ADD COLUMN problemTopics TEXT").run();
+  } catch (e) {}
+
+  // Migration: Add subject_id, student_id and level to flashcards and quizzes if they don't exist
+  try {
+    db.prepare("ALTER TABLE flashcards ADD COLUMN subject_id INTEGER").run();
+  } catch (e) {}
+  try {
+    db.prepare("ALTER TABLE flashcards ADD COLUMN student_id INTEGER").run();
+  } catch (e) {}
+  try {
+    db.prepare("ALTER TABLE flashcards ADD COLUMN level TEXT DEFAULT 'Beginner'").run();
+  } catch (e) {}
+
+  try {
+    db.prepare("ALTER TABLE quizzes ADD COLUMN subject_id INTEGER").run();
+  } catch (e) {}
+  try {
+    db.prepare("ALTER TABLE quizzes ADD COLUMN student_id INTEGER").run();
+  } catch (e) {}
+  try {
+    db.prepare("ALTER TABLE quizzes ADD COLUMN level TEXT DEFAULT 'Beginner'").run();
+  } catch (e) {}
+
+  try {
     db.prepare("ALTER TABLE assignments ADD COLUMN file_url TEXT").run();
-  } catch (e) {
-    // Column already exists or other error
-  }
-    try {
+  } catch (e) {}
+  try {
     db.prepare("ALTER TABLE achievements ADD COLUMN description TEXT").run();
   } catch (e) {}
   
@@ -256,13 +294,16 @@ try {
   try { db.prepare("ALTER TABLE students ADD COLUMN fatherNumber TEXT").run(); } catch (e) {}
   try { db.prepare("ALTER TABLE students ADD COLUMN motherNumber TEXT").run(); } catch (e) {}
   try { db.prepare("ALTER TABLE students ADD COLUMN problemSubjects TEXT").run(); } catch (e) {}
+  try { db.prepare("ALTER TABLE students ADD COLUMN problemTopics TEXT").run(); } catch (e) {}
   
   // Subject Year Migration
   try { db.prepare("ALTER TABLE subjects ADD COLUMN year INTEGER DEFAULT 1").run(); } catch (e) {}
   
   // Targeted Assignments Migration
   try { db.prepare("ALTER TABLE quizzes ADD COLUMN student_id INTEGER").run(); } catch (e) {}
+  try { db.prepare("ALTER TABLE quizzes ADD COLUMN level TEXT DEFAULT 'Beginner'").run(); } catch (e) {}
   try { db.prepare("ALTER TABLE flashcards ADD COLUMN student_id INTEGER").run(); } catch (e) {}
+  try { db.prepare("ALTER TABLE flashcards ADD COLUMN level TEXT DEFAULT 'Beginner'").run(); } catch (e) {}
   try { db.prepare("ALTER TABLE attendance ADD COLUMN time TEXT").run(); } catch (e) {}
 
 // Seed Admin if not exists
@@ -294,114 +335,114 @@ if (subjectsCount < 50) {
     {
       name: "GAMAT101 – Mathematics for Information Science-1 (Linear Algebra)",
       semester: 1,
-      class: "CSE",
+      class: "computer science",
     },
     {
       name: "GAPHT121 – Physics for Information Science",
       semester: 1,
-      class: "CSE",
+      class: "computer science",
     },
     {
       name: "GACYT122 – Chemistry for Information Science",
       semester: 1,
-      class: "CSE",
+      class: "computer science",
     },
     {
       name: "GXEST103 – Engineering Graphics and Computer Aided Drawing",
       semester: 1,
-      class: "CSE",
+      class: "computer science",
     },
     {
       name: "GXEST104 – Introduction to Electrical and Electronics Engineering",
       semester: 1,
-      class: "CSE",
+      class: "computer science",
     },
     {
       name: "UCEST105 – Algorithmic Thinking with Python",
       semester: 1,
-      class: "CSE",
+      class: "computer science",
     },
     {
       name: "GAESL106 – Basic Electrical and Electronics Engineering Workshop",
       semester: 1,
-      class: "CSE",
+      class: "computer science",
     },
-    { name: "UCPST127 – Health and Wellness", semester: 1, class: "CSE" },
+    { name: "UCPST127 – Health and Wellness", semester: 1, class: "computer science" },
     {
       name: "UCHUT128 – Life Skills and Professional Communication",
       semester: 1,
-      class: "CSE",
+      class: "computer science",
     },
     {
       name: "UCSEM129 – Skill Enhancement Course: Digital 101 (NASSCOM MOOC)",
       semester: 1,
-      class: "CSE",
+      class: "computer science",
     },
 
     // Semester 2 (S2)
     {
       name: "VECTOR CALCULUS, DIFFERENTIAL EQUATIONS",
       semester: 2,
-      class: "CSE",
+      class: "computer science",
     },
-    { name: "ENGINEERING PHYSICS", semester: 2, class: "CSE" },
-    { name: "ENGINEERING GRAPHICS", semester: 2, class: "CSE" },
-    { name: "PROGRAMMING IN C", semester: 2, class: "CSE" },
-    { name: "ENGINEERING CHEMISTRY", semester: 2, class: "CSE" },
-    { name: "ENGINEERING MECHANICS", semester: 2, class: "CSE" },
-    { name: "PROFESSIONAL COMMUNICATION", semester: 2, class: "CSE" },
-    { name: "BASICS OF CIVIL & MECHANICAL", semester: 2, class: "CSE" },
-    { name: "BASICS OF ELECTRICAL & ELECTRONICS", semester: 2, class: "CSE" },
+    { name: "ENGINEERING PHYSICS", semester: 2, class: "computer science" },
+    { name: "ENGINEERING GRAPHICS", semester: 2, class: "computer science" },
+    { name: "PROGRAMMING IN C", semester: 2, class: "computer science" },
+    { name: "ENGINEERING CHEMISTRY", semester: 2, class: "computer science" },
+    { name: "ENGINEERING MECHANICS", semester: 2, class: "computer science" },
+    { name: "PROFESSIONAL COMMUNICATION", semester: 2, class: "computer science" },
+    { name: "BASICS OF CIVIL & MECHANICAL", semester: 2, class: "computer science" },
+    { name: "BASICS OF ELECTRICAL & ELECTRONICS", semester: 2, class: "computer science" },
 
     // Semester 3 (S3)
-    { name: "DISCRETE MATHEMATICAL STRUCTURES", semester: 3, class: "CSE" },
-    { name: "OBJECT ORIENTED PROGRAMMING JAVA", semester: 3, class: "CSE" },
-    { name: "Data Structures", semester: 3, class: "CSE" },
-    { name: "Logic System Design", semester: 3, class: "CSE" },
-    { name: "Sustainable Engineering", semester: 3, class: "CSE" },
-    { name: "DESIGN & ENGINEERING", semester: 3, class: "CSE" },
+    { name: "DISCRETE MATHEMATICAL STRUCTURES", semester: 3, class: "computer science" },
+    { name: "OBJECT ORIENTED PROGRAMMING JAVA", semester: 3, class: "computer science" },
+    { name: "Data Structures", semester: 3, class: "computer science" },
+    { name: "Logic System Design", semester: 3, class: "computer science" },
+    { name: "Sustainable Engineering", semester: 3, class: "computer science" },
+    { name: "DESIGN & ENGINEERING", semester: 3, class: "computer science" },
 
     // Semester 4 (S4)
-    { name: "COMPUTER ORGANISATION & ARCHITECTURE", semester: 4, class: "CSE" },
-    { name: "GRAPH THEORY", semester: 4, class: "CSE" },
-    { name: "DATABASE MANAGEMENT SYSTEMS", semester: 4, class: "CSE" },
-    { name: "OPERATING SYSTEMS", semester: 4, class: "CSE" },
-    { name: "CONSTITUTION OF INDIA", semester: 4, class: "CSE" },
-    { name: "PROFESSIONAL ETHICS", semester: 4, class: "CSE" },
+    { name: "COMPUTER ORGANISATION & ARCHITECTURE", semester: 4, class: "computer science" },
+    { name: "GRAPH THEORY", semester: 4, class: "computer science" },
+    { name: "DATABASE MANAGEMENT SYSTEMS", semester: 4, class: "computer science" },
+    { name: "OPERATING SYSTEMS", semester: 4, class: "computer science" },
+    { name: "CONSTITUTION OF INDIA", semester: 4, class: "computer science" },
+    { name: "PROFESSIONAL ETHICS", semester: 4, class: "computer science" },
 
     // Semester 5 (S5)
-    { name: "FORMAL LANGUAGES & AUTOMATA THEORY", semester: 5, class: "CSE" },
-    { name: "MANAGEMENT OF SOFTWARE SYSTEMS", semester: 5, class: "CSE" },
-    { name: "MICROPROCESSORS AND MICROCONTROLLERS", semester: 5, class: "CSE" },
-    { name: "COMPUTER NETWORKS", semester: 5, class: "CSE" },
-    { name: "SYSTEM SOFTWARE", semester: 5, class: "CSE" },
-    { name: "DISASTER MANAGEMENT", semester: 5, class: "CSE" },
+    { name: "FORMAL LANGUAGES & AUTOMATA THEORY", semester: 5, class: "computer science" },
+    { name: "MANAGEMENT OF SOFTWARE SYSTEMS", semester: 5, class: "computer science" },
+    { name: "MICROPROCESSORS AND MICROCONTROLLERS", semester: 5, class: "computer science" },
+    { name: "COMPUTER NETWORKS", semester: 5, class: "computer science" },
+    { name: "SYSTEM SOFTWARE", semester: 5, class: "computer science" },
+    { name: "DISASTER MANAGEMENT", semester: 5, class: "computer science" },
 
     // Semester 6 (S6)
-    { name: "COMPUTER GRAPHICS & IMAGE PROCESSING", semester: 6, class: "CSE" },
-    { name: "ALGORITHM ANALYSIS & DESIGN", semester: 6, class: "CSE" },
-    { name: "COMPILER DESIGN", semester: 6, class: "CSE" },
-    { name: "INDUSTRIAL ECONOMIC & FOREIGN TRADE", semester: 6, class: "CSE" },
+    { name: "COMPUTER GRAPHICS & IMAGE PROCESSING", semester: 6, class: "computer science" },
+    { name: "ALGORITHM ANALYSIS & DESIGN", semester: 6, class: "computer science" },
+    { name: "COMPILER DESIGN", semester: 6, class: "computer science" },
+    { name: "INDUSTRIAL ECONOMIC & FOREIGN TRADE", semester: 6, class: "computer science" },
 
     // Semester 7 (S7)
-    { name: "NATURAL LANGUAGE PROCESSING", semester: 7, class: "CSE" },
-    { name: "MACHINE LEARNING", semester: 7, class: "CSE" },
-    { name: "CLOUD COMPUTING", semester: 7, class: "CSE" },
-    { name: "ARTIFICIAL INTELLIGENCE", semester: 7, class: "CSE" },
-    { name: "WEB PROGRAMMING", semester: 7, class: "CSE" },
-    { name: "COMPUTER GRAPHICS", semester: 7, class: "CSE" },
+    { name: "NATURAL LANGUAGE PROCESSING", semester: 7, class: "computer science" },
+    { name: "MACHINE LEARNING", semester: 7, class: "computer science" },
+    { name: "CLOUD COMPUTING", semester: 7, class: "computer science" },
+    { name: "ARTIFICIAL INTELLIGENCE", semester: 7, class: "computer science" },
+    { name: "WEB PROGRAMMING", semester: 7, class: "computer science" },
+    { name: "COMPUTER GRAPHICS", semester: 7, class: "computer science" },
 
     // Semester 8 (S8)
-    { name: "DISTRIBUTED COMPUTING", semester: 8, class: "CSE" },
-    { name: "EMBEDDED SYSTEM", semester: 8, class: "CSE" },
-    { name: "INTERNET OF THINGS", semester: 8, class: "CSE" },
-    { name: "INDUSTRIAL SAFETY ENGINEERING", semester: 8, class: "CSE" },
+    { name: "DISTRIBUTED COMPUTING", semester: 8, class: "computer science" },
+    { name: "EMBEDDED SYSTEM", semester: 8, class: "computer science" },
+    { name: "INTERNET OF THINGS", semester: 8, class: "computer science" },
+    { name: "INDUSTRIAL SAFETY ENGINEERING", semester: 8, class: "computer science" },
   ];
 
   const insertSubject = db.prepare(
     "INSERT INTO subjects (name, semester, class, year) VALUES (?, ?, ?, ?)",
   );
-  const classes = ["CSE", "SOE", "Data Science", "Artificial Intelligence"];
+  const classes = ["computer science", "SOE", "Data Science", "Artificial Intelligence"];
 
   classes.forEach((c) => {
     seedSubjects.forEach((s) => {
@@ -682,7 +723,40 @@ app.get("/api/admin/students", authenticateToken, (req, res) => {
       "SELECT id, name, username, class, semester, points, stars, tenthMarks, twelfthMarks, fatherName, motherName, fatherNumber, motherNumber, problemSubjects FROM students",
     )
     .all();
-  res.json(students);
+
+  const studentsWithStats = students.map((s) => {
+    const marks = db
+      .prepare("SELECT AVG(marks) as avg FROM marks WHERE student_id = ?")
+      .get(s.id);
+    
+    const attendanceRecords = db
+      .prepare("SELECT status, subject_id FROM attendance WHERE student_id = ?")
+      .all(s.id);
+    const attendedClasses = attendanceRecords.filter(
+      (a) => a.status === "Present" || a.status === "Late",
+    ).length;
+
+    
+    // For a simpler overall total, we can just take the max total records for any student in this class
+    const overallMaxQuery = db.prepare(`
+      SELECT MAX(cnt) as max_cnt FROM (
+        SELECT COUNT(*) as cnt FROM attendance WHERE student_id IN (SELECT id FROM students WHERE class = ? AND semester = ?) GROUP BY student_id
+      )
+    `).get(s.class, s.semester);
+
+    const totalClasses = overallMaxQuery.max_cnt || attendanceRecords.length;
+    const attendanceRate = totalClasses > 0 ? Math.round((attendedClasses / totalClasses) * 100) : 0;
+
+    return {
+      ...s,
+      avgMarks: marks.avg ? Math.round(marks.avg) : 0,
+      attendance: attendanceRate,
+      attendedClasses,
+      totalClasses,
+    };
+  });
+
+  res.json(studentsWithStats);
 });
 
 app.get("/api/admin/students/:id", authenticateToken, (req, res) => {
@@ -803,41 +877,92 @@ app.get("/api/teacher/students", authenticateToken, (req, res) => {
       )
       .all();
   } else {
-    // For teachers, we might want to filter by their assigned class if they are a class teacher
+    // For teachers: Return students from THEIR assigned class (if class teacher)
+    // AND students in classes/semesters where they teach a subject.
     const teacher = db
       .prepare(
-        "SELECT isClassTeacher, assignedClass FROM teachers WHERE id = ?",
+        "SELECT isClassTeacher, assignedClass, assignedSemester FROM teachers WHERE id = ?",
       )
       .get(req.user.id);
-    if (teacher && teacher.isClassTeacher) {
+
+    if (teacher) {
+      // If class teacher, show ALL students in their assigned class
+      // AND students in any other classes/subjects they teach
       students = db
         .prepare(
-          "SELECT id, name, username, class, semester, points, stars, tenthMarks, twelfthMarks, fatherName, motherName, fatherNumber, motherNumber, problemSubjects FROM students WHERE class = ?",
+          `
+          SELECT DISTINCT s.* 
+          FROM students s
+          LEFT JOIN subjects sub ON s.class = sub.class AND s.semester = sub.semester
+          LEFT JOIN teacher_subjects ts ON sub.id = ts.subject_id
+          WHERE (s.class = ? AND (? IS NULL OR s.semester = ?))
+          OR ts.teacher_id = ?
+          `,
         )
-        .all(teacher.assignedClass);
+        .all(teacher.assignedClass, teacher.assignedSemester, teacher.assignedSemester, req.user.id);
     } else {
-      // If not a class teacher, maybe they see all students or none?
-      // Let's allow them to see all students for now so they can add marks.
-      students = db
-        .prepare(
-          "SELECT id, name, username, class, semester, points, stars, tenthMarks, twelfthMarks, fatherName, motherName, fatherNumber, motherNumber, problemSubjects FROM students",
-        )
-        .all();
+      students = [];
     }
   }
 
-  // Add avg marks to each student (mocked for now as in the dashboard)
+  // Add real marks and attendance stats to each student
   const studentsWithStats = students.map((s) => {
     const marks = db
       .prepare("SELECT AVG(marks) as avg FROM marks WHERE student_id = ?")
       .get(s.id);
+    
+    const attendanceRecords = db
+      .prepare("SELECT status FROM attendance WHERE student_id = ?")
+      .all(s.id);
+    const attendedClasses = attendanceRecords.filter(
+      (a) => a.status === "Present" || a.status === "Late",
+    ).length;
+
+    // Class Max heuristic
+    const overallMaxQuery = db.prepare(`
+      SELECT MAX(cnt) as max_cnt FROM (
+        SELECT COUNT(*) as cnt FROM attendance WHERE student_id IN (SELECT id FROM students WHERE class = ? AND semester = ?) GROUP BY student_id
+      )
+    `).get(s.class, s.semester);
+
+    const totalClasses = overallMaxQuery.max_cnt || attendanceRecords.length;
+    const attendanceRate = totalClasses > 0 ? Math.round((attendedClasses / totalClasses) * 100) : 0;
+
     return {
       ...s,
       avgMarks: marks.avg ? Math.round(marks.avg) : 0,
+      attendance: attendanceRate,
+      attendedClasses,
+      totalClasses,
     };
   });
 
   res.json(studentsWithStats);
+});
+
+// Teacher Dashboard - Student Confidence Analytics
+app.get("/api/teacher/student-confidence", authenticateToken, (req, res) => {
+  if (req.user.role !== "teacher") return res.sendStatus(403);
+  
+  const teacher = db.prepare("SELECT assignedClass, assignedSemester FROM teachers WHERE id = ?").get(req.user.id);
+  if (!teacher) return res.status(404).json({ message: "Teacher not found" });
+
+  const students = db.prepare(`
+    SELECT DISTINCT s.id, s.name, s.class, s.semester, s.problemSubjects, s.problemTopics
+    FROM students s
+    LEFT JOIN subjects sub ON s.class = sub.class AND s.semester = sub.semester
+    LEFT JOIN teacher_subjects ts ON sub.id = ts.subject_id
+    WHERE (s.class = ? AND (? IS NULL OR s.semester = ?))
+    OR ts.teacher_id = ?
+  `).all(teacher.assignedClass, teacher.assignedSemester, teacher.assignedSemester, req.user.id);
+
+  const confidenceData = students.map(s => ({
+    ...s,
+    problemSubjects: s.problemSubjects ? JSON.parse(s.problemSubjects) : [],
+    problemTopics: s.problemTopics ? JSON.parse(s.problemTopics) : []
+  }));
+
+  res.json(confidenceData);
 });
 
 // Marks & Attendance
@@ -1261,7 +1386,8 @@ app.put("/api/student/profile", authenticateToken, (req, res) => {
           motherName = ?, 
           fatherNumber = ?, 
           motherNumber = ?, 
-          problemSubjects = ?
+          problemSubjects = ?,
+          problemTopics = ?
       WHERE id = ?
     `).run(
       tenthMarks,
@@ -1271,6 +1397,7 @@ app.put("/api/student/profile", authenticateToken, (req, res) => {
       fatherNumber,
       motherNumber,
       JSON.stringify(problemSubjects),
+      JSON.stringify(problemTopics || []),
       req.user.id
     );
     res.json({ success: true });
@@ -1460,15 +1587,15 @@ app.get("/api/quizzes", authenticateToken, (req, res) => {
 
 app.post("/api/quizzes", authenticateToken, (req, res) => {
   if (req.user.role !== "teacher") return res.sendStatus(403);
-  const { subject_id, title, questions, student_ids } = req.body;
+  const { subject_id, title, questions, student_ids, level } = req.body;
   
   const insert = db.prepare(
-    "INSERT INTO quizzes (teacher_id, subject_id, title, questions, student_id) VALUES (?, ?, ?, ?, ?)",
+    "INSERT INTO quizzes (teacher_id, subject_id, title, questions, student_id, level) VALUES (?, ?, ?, ?, ?, ?)",
   );
   
   const transaction = db.transaction((ids) => {
     for (const id of ids) {
-      insert.run(req.user.id, subject_id, title, JSON.stringify(questions), id);
+      insert.run(req.user.id, subject_id, title, JSON.stringify(questions), id, level || 'Beginner');
     }
   });
 
@@ -1478,7 +1605,7 @@ app.post("/api/quizzes", authenticateToken, (req, res) => {
 
 app.put("/api/quizzes/:id", authenticateToken, (req, res) => {
   if (req.user.role !== "teacher") return res.sendStatus(403);
-  const { subject_id, title, questions, student_ids } = req.body;
+  const { subject_id, title, questions, student_ids, level } = req.body;
   const quizId = req.params.id;
 
   try {
@@ -1494,10 +1621,10 @@ app.put("/api/quizzes/:id", authenticateToken, (req, res) => {
       );
 
       const insert = db.prepare(
-        "INSERT INTO quizzes (teacher_id, subject_id, title, questions, student_id) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO quizzes (teacher_id, subject_id, title, questions, student_id, level) VALUES (?, ?, ?, ?, ?, ?)",
       );
       for (const id of ids) {
-        insert.run(req.user.id, subject_id, title, JSON.stringify(questions), id);
+        insert.run(req.user.id, subject_id, title, JSON.stringify(questions), id, level || 'Beginner');
       }
     });
 
@@ -1627,15 +1754,15 @@ app.get("/api/flashcards", authenticateToken, (req, res) => {
 
 app.post("/api/flashcards", authenticateToken, (req, res) => {
   if (req.user.role !== "teacher") return res.sendStatus(403);
-  const { subject_id, question, answer, student_ids } = req.body;
+  const { subject_id, question, answer, student_ids, level } = req.body;
   
   const insert = db.prepare(
-    "INSERT INTO flashcards (teacher_id, subject_id, question, answer, student_id) VALUES (?, ?, ?, ?, ?)",
+    "INSERT INTO flashcards (teacher_id, subject_id, question, answer, student_id, level) VALUES (?, ?, ?, ?, ?, ?)",
   );
   
   const transaction = db.transaction((ids) => {
     for (const id of ids) {
-      insert.run(req.user.id, subject_id, question, answer, id);
+      insert.run(req.user.id, subject_id, question, answer, id, level || 'Beginner');
     }
   });
 
@@ -1645,7 +1772,7 @@ app.post("/api/flashcards", authenticateToken, (req, res) => {
 
 app.put("/api/flashcards/:id", authenticateToken, (req, res) => {
   if (req.user.role !== "teacher") return res.sendStatus(403);
-  const { subject_id, question, answer, student_ids } = req.body;
+  const { subject_id, question, answer, student_ids, level } = req.body;
   const cardId = req.params.id;
 
   try {
@@ -1660,10 +1787,10 @@ app.put("/api/flashcards/:id", authenticateToken, (req, res) => {
       ).run(original.question, req.user.id);
 
       const insert = db.prepare(
-        "INSERT INTO flashcards (teacher_id, subject_id, question, answer, student_id) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO flashcards (teacher_id, subject_id, question, answer, student_id, level) VALUES (?, ?, ?, ?, ?, ?)",
       );
       for (const id of ids) {
-        insert.run(req.user.id, subject_id, question, answer, id);
+        insert.run(req.user.id, subject_id, question, answer, id, level || 'Beginner');
       }
     });
 
@@ -1714,27 +1841,51 @@ app.get("/api/analytics/student/:id", authenticateToken, (req, res) => {
     )
     .all(studentId);
 
+  const studentInfo = db
+    .prepare("SELECT class, semester, problemSubjects, problemTopics FROM students WHERE id = ?")
+    .get(studentId);
+
+  // Subject-wise Class Max heuristic
+  const subjectMaxHeld = db.prepare(`
+    SELECT subject_id, MAX(cnt) as max_cnt FROM (
+      SELECT student_id, subject_id, COUNT(*) as cnt FROM attendance 
+      WHERE subject_id IN (SELECT id FROM subjects WHERE class = ? AND semester = ?)
+      GROUP BY student_id, subject_id
+    ) GROUP BY subject_id
+  `).all(studentInfo.class, studentInfo.semester);
+
   marks.forEach((m) => {
     const att = subjectWiseAttendance.find((a) => a.subject_id === m.subject_id);
-    m.attendance = att ? Math.round((att.present / att.total) * 100) : 0;
+    const maxForSub = subjectMaxHeld.find(sm => sm.subject_id === m.subject_id)?.max_cnt || (att ? att.total : 0);
+    m.attendance = maxForSub > 0 ? Math.round(((att ? att.present : 0) / maxForSub) * 100) : 0;
     m.attendedClasses = att ? att.present : 0;
-    m.totalClasses = att ? att.total : 0;
+    m.totalClasses = maxForSub;
   });
   const attendance = db
     .prepare("SELECT status FROM attendance WHERE student_id = ?")
     .all(studentId);
-  const cgpas = db
-    .prepare(
-      "SELECT semester, cgpa FROM cgpa WHERE student_id = ? ORDER BY semester",
-    )
-    .all(studentId);
 
-  const totalClasses = attendance.length;
+  // Class Max heuristic for total classes
+  const overallMaxQuery = db.prepare(`
+    SELECT MAX(cnt) as max_cnt FROM (
+      SELECT COUNT(*) as cnt FROM attendance 
+      WHERE student_id IN (SELECT id FROM students WHERE class = ? AND semester = ?) 
+      GROUP BY student_id
+    )
+  `).get(studentInfo.class, studentInfo.semester);
+  
+  const totalClasses = overallMaxQuery.max_cnt || attendance.length;
   const attendedClasses = attendance.filter(
     (a) => a.status === "Present" || a.status === "Late",
   ).length;
   const attendanceRate =
     totalClasses > 0 ? (attendedClasses / totalClasses) * 100 : 0;
+
+  const cgpas = db
+    .prepare(
+      "SELECT semester, cgpa FROM cgpa WHERE student_id = ? ORDER BY semester",
+    )
+    .all(studentId);
 
   const avgMarks =
     marks.length > 0

@@ -48,14 +48,14 @@ export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
     username: "",
     password: "",
     isClassTeacher: false,
-    assignedClass: "CSE",
+    assignedClass: "computer science",
     assignedSemester: 1,
   });
   const [newStudent, setNewStudent] = useState({
     name: "",
     username: "",
     password: "",
-    class: "CSE",
+    class: "computer science",
     semester: 1,
     fatherName: "",
     fatherNumber: "",
@@ -65,7 +65,7 @@ export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
   const [newSubject, setNewSubject] = useState({
     name: "",
     semester: 1,
-    class: "CSE",
+    class: "computer science",
     year: 1,
   });
   const [broadcastMessage, setBroadcastMessage] = useState("");
@@ -76,7 +76,7 @@ export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
   const [assignedSubjects, setAssignedSubjects] = useState([]);
 
   const classes = [
-    "CSE",
+    "computer science",
     "SOE",
     "Data Science",
     "Artificial Intelligence",
@@ -628,6 +628,17 @@ export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
                   </td>
                   <td className="px-6 py-4 text-slate-600">
                     Sem {student.semester}
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="w-full max-w-[80px] bg-slate-100 h-1.5 rounded-full overflow-hidden mb-1">
+                      <div
+                        className={`h-full rounded-full ${student.attendance >= 75 ? "bg-emerald-500" : "bg-orange-500"}`}
+                        style={{ width: `${student.attendance}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      {student.attendance}% ({student.attendedClasses}/{student.totalClasses})
+                    </p>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">

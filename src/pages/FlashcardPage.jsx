@@ -37,6 +37,7 @@ export default function FlashcardPage() {
     subject_id: "",
     question: "",
     answer: "",
+    level: "Beginner",
     student_ids: [],
   });
   const [students, setStudents] = useState([]);
@@ -108,6 +109,7 @@ export default function FlashcardPage() {
         subject_id: subjects[0]?.id ? String(subjects[0].id) : "",
         question: "",
         answer: "",
+        level: "Beginner",
         student_ids: [],
       });
       fetchFlashcards();
@@ -168,6 +170,7 @@ export default function FlashcardPage() {
       subject_id: String(card.subject_id),
       question: card.question,
       answer: card.answer,
+      level: card.level || "Beginner",
       student_ids: student_ids,
     });
     setStep(1);
@@ -290,8 +293,19 @@ export default function FlashcardPage() {
                 className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition-all group"
               >
                 <div className="flex items-start justify-between mb-6">
-                  <div className="p-4 bg-orange-50 text-orange-600 rounded-2xl group-hover:scale-110 transition-transform">
-                    <Lightbulb size={32} />
+                  <div className="flex flex-col gap-2">
+                    <div className="p-4 bg-orange-50 text-orange-600 rounded-2xl group-hover:scale-110 transition-transform w-fit">
+                      <Lightbulb size={32} />
+                    </div>
+                    {card.level && (
+                      <span className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
+                        card.level === 'Advanced' ? 'bg-red-100 text-red-600' : 
+                        card.level === 'Intermediate' ? 'bg-orange-100 text-orange-600' : 
+                        'bg-emerald-100 text-emerald-600'
+                      }`}>
+                        {card.level}
+                      </span>
+                    )}
                   </div>
                   <div className="text-right">
                     <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-wider block mb-1">
@@ -490,6 +504,25 @@ export default function FlashcardPage() {
                             {s.name} ({s.class})
                           </option>
                         ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2">
+                        Difficulty Level
+                      </label>
+                      <select
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500 transition-all"
+                        value={newFlashcard.level}
+                        onChange={(e) =>
+                          setNewFlashcard({
+                            ...newFlashcard,
+                            level: e.target.value,
+                          })
+                        }
+                      >
+                        <option value="Beginner">Beginner</option>
+                        <option value="Intermediate">Intermediate</option>
+                        <option value="Advanced">Advanced</option>
                       </select>
                     </div>
                     <div>
