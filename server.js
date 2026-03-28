@@ -44,11 +44,11 @@ const PORT = 3000;
 const JWT_SECRET = process.env.JWT_SECRET || "eduai-secret-key-2026";
 
 // Database Setup
+// Database Setup
 const db = new sqlite3("eduai.db");
 db.pragma("foreign_keys = ON");
 
-
-// Initialize Schema
+// Initialize Base Schema
 db.exec(`
   CREATE TABLE IF NOT EXISTS admins (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,14 +76,23 @@ db.exec(`
     class TEXT,
     semester INTEGER,
     points INTEGER DEFAULT 0,
-    stars INTEGER DEFAULT 0
+    stars INTEGER DEFAULT 0,
+    tenthMarks REAL,
+    twelfthMarks REAL,
+    fatherName TEXT,
+    motherName TEXT,
+    fatherNumber TEXT,
+    motherNumber TEXT,
+    problemSubjects TEXT, -- JSON
+    problemTopics TEXT    -- JSON
   );
 
   CREATE TABLE IF NOT EXISTS subjects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT,
     semester INTEGER,
-    class TEXT
+    class TEXT,
+    year INTEGER DEFAULT 1
   );
 
   CREATE TABLE IF NOT EXISTS teacher_subjects (
@@ -112,6 +121,7 @@ db.exec(`
     student_id INTEGER,
     subject_id INTEGER,
     date TEXT,
+    time TEXT,
     status TEXT,
     FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE,
     FOREIGN KEY(subject_id) REFERENCES subjects(id) ON DELETE CASCADE
@@ -133,14 +143,14 @@ db.exec(`
     FOREIGN KEY(subject_id) REFERENCES subjects(id) ON DELETE CASCADE
   );
 
-  
-
   CREATE TABLE IF NOT EXISTS flashcards (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     teacher_id INTEGER,
     subject_id INTEGER,
+    student_id INTEGER,
     question TEXT,
     answer TEXT,
+    level TEXT DEFAULT 'Beginner',
     FOREIGN KEY(teacher_id) REFERENCES teachers(id) ON DELETE CASCADE,
     FOREIGN KEY(subject_id) REFERENCES subjects(id) ON DELETE CASCADE
   );
@@ -149,8 +159,10 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     teacher_id INTEGER,
     subject_id INTEGER,
+    student_id INTEGER,
     title TEXT,
     questions TEXT, -- JSON string
+    level TEXT DEFAULT 'Beginner',
     FOREIGN KEY(teacher_id) REFERENCES teachers(id) ON DELETE CASCADE,
     FOREIGN KEY(subject_id) REFERENCES subjects(id) ON DELETE CASCADE
   );
@@ -189,7 +201,6 @@ db.exec(`
     FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
   );
 
-
   CREATE TABLE IF NOT EXISTS timetable (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     class TEXT,
@@ -227,87 +238,71 @@ db.exec(`
     is_read BOOLEAN DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
-`);
- // Migration: Add detailed_data to marks if not exists
-  const marksColumns = db.prepare("PRAGMA table_info(marks)").all();
-  if (!marksColumns.some(c => c.name === 'detailed_data')) {
-    db.exec("ALTER TABLE marks ADD COLUMN detailed_data TEXT;");
-    console.log("Migration: Added detailed_data column to marks table.");
+\`);
+
+// ── Database Migration System (Robust Schema Evolution) ────────────────────────
+// This ensures that existing databases built with older versions get updated.
+const migrations = {
+  teachers: [
+    { name: "department", type: "TEXT" },
+    { name: "isClassTeacher", type: "BOOLEAN DEFAULT 0" },
+    { name: "assignedClass", type: "TEXT" },
+    { name: "assignedSemester", type: "INTEGER" }
+  ],
+  students: [
+    { name: "tenthMarks", type: "REAL" },
+    { name: "twelfthMarks", type: "REAL" },
+    { name: "fatherName", type: "TEXT" },
+    { name: "motherName", type: "TEXT" },
+    { name: "fatherNumber", type: "TEXT" },
+    { name: "motherNumber", type: "TEXT" },
+    { name: "problemSubjects", type: "TEXT" },
+    { name: "problemTopics", type: "TEXT" }
+  ],
+  attendance: [
+    { name: "time", type: "TEXT" }
+  ],
+  marks: [
+    { name: "detailed_data", type: "TEXT" }
+  ],
+  flashcards: [
+    { name: "subject_id", type: "INTEGER" },
+    { name: "student_id", type: "INTEGER" },
+    { name: "level", type: "TEXT DEFAULT 'Beginner'" }
+  ],
+  quizzes: [
+    { name: "subject_id", type: "INTEGER" },
+    { name: "student_id", type: "INTEGER" },
+    { name: "level", type: "TEXT DEFAULT 'Beginner'" }
+  ],
+  assignments: [
+    { name: "file_url", type: "TEXT" }
+  ],
+  achievements: [
+    { name: "description", type: "TEXT" }
+  ],
+  subjects: [
+    { name: "year", type: "INTEGER DEFAULT 1" }
+  ]
+};
+
+Object.entries(migrations).forEach(([table, columns]) => {
+  try {
+    const currentColumns = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
+    columns.forEach(col => {
+      if (!currentColumns.includes(col.name)) {
+        try {
+          db.exec(`ALTER TABLE ${table} ADD COLUMN ${col.name} ${col.type}`);
+          console.log(`Migration: Added ${col.name} to ${table} table.`);
+        } catch (e) {
+          console.error(`Migration Failed for ${table}.${col.name}:`, e.message);
+        }
+      }
+    });
+  } catch (e) {
+    console.error(`Migration Check Failed for table ${table}:`, e.message);
   }
-
-  // Migration: Add student profile columns to students
-  try {
-    db.prepare("ALTER TABLE students ADD COLUMN tenthMarks REAL").run();
-  } catch (e) {}
-  try {
-    db.prepare("ALTER TABLE students ADD COLUMN twelfthMarks REAL").run();
-  } catch (e) {}
-  try {
-    db.prepare("ALTER TABLE students ADD COLUMN fatherName TEXT").run();
-  } catch (e) {}
-  try {
-    db.prepare("ALTER TABLE students ADD COLUMN motherName TEXT").run();
-  } catch (e) {}
-  try {
-    db.prepare("ALTER TABLE students ADD COLUMN fatherNumber TEXT").run();
-  } catch (e) {}
-  try {
-    db.prepare("ALTER TABLE students ADD COLUMN motherNumber TEXT").run();
-  } catch (e) {}
-  try {
-    db.prepare("ALTER TABLE students ADD COLUMN problemSubjects TEXT").run();
-  } catch (e) {}
-  try {
-    db.prepare("ALTER TABLE students ADD COLUMN problemTopics TEXT").run();
-  } catch (e) {}
-
-  // Migration: Add subject_id, student_id and level to flashcards and quizzes if they don't exist
-  try {
-    db.prepare("ALTER TABLE flashcards ADD COLUMN subject_id INTEGER").run();
-  } catch (e) {}
-  try {
-    db.prepare("ALTER TABLE flashcards ADD COLUMN student_id INTEGER").run();
-  } catch (e) {}
-  try {
-    db.prepare("ALTER TABLE flashcards ADD COLUMN level TEXT DEFAULT 'Beginner'").run();
-  } catch (e) {}
-
-  try {
-    db.prepare("ALTER TABLE quizzes ADD COLUMN subject_id INTEGER").run();
-  } catch (e) {}
-  try {
-    db.prepare("ALTER TABLE quizzes ADD COLUMN student_id INTEGER").run();
-  } catch (e) {}
-  try {
-    db.prepare("ALTER TABLE quizzes ADD COLUMN level TEXT DEFAULT 'Beginner'").run();
-  } catch (e) {}
-
-  try {
-    db.prepare("ALTER TABLE assignments ADD COLUMN file_url TEXT").run();
-  } catch (e) {}
-  try {
-    db.prepare("ALTER TABLE achievements ADD COLUMN description TEXT").run();
-  } catch (e) {}
-  
-  // Student Profile Migration
-  try { db.prepare("ALTER TABLE students ADD COLUMN tenthMarks REAL").run(); } catch (e) {}
-  try { db.prepare("ALTER TABLE students ADD COLUMN twelfthMarks REAL").run(); } catch (e) {}
-  try { db.prepare("ALTER TABLE students ADD COLUMN fatherName TEXT").run(); } catch (e) {}
-  try { db.prepare("ALTER TABLE students ADD COLUMN motherName TEXT").run(); } catch (e) {}
-  try { db.prepare("ALTER TABLE students ADD COLUMN fatherNumber TEXT").run(); } catch (e) {}
-  try { db.prepare("ALTER TABLE students ADD COLUMN motherNumber TEXT").run(); } catch (e) {}
-  try { db.prepare("ALTER TABLE students ADD COLUMN problemSubjects TEXT").run(); } catch (e) {}
-  try { db.prepare("ALTER TABLE students ADD COLUMN problemTopics TEXT").run(); } catch (e) {}
-  
-  // Subject Year Migration
-  try { db.prepare("ALTER TABLE subjects ADD COLUMN year INTEGER DEFAULT 1").run(); } catch (e) {}
-  
-  // Targeted Assignments Migration
-  try { db.prepare("ALTER TABLE quizzes ADD COLUMN student_id INTEGER").run(); } catch (e) {}
-  try { db.prepare("ALTER TABLE quizzes ADD COLUMN level TEXT DEFAULT 'Beginner'").run(); } catch (e) {}
-  try { db.prepare("ALTER TABLE flashcards ADD COLUMN student_id INTEGER").run(); } catch (e) {}
-  try { db.prepare("ALTER TABLE flashcards ADD COLUMN level TEXT DEFAULT 'Beginner'").run(); } catch (e) {}
-  try { db.prepare("ALTER TABLE attendance ADD COLUMN time TEXT").run(); } catch (e) {}
+});
 
 // Seed Admin if not exists
 const adminExists = db
@@ -326,6 +321,7 @@ if (!adminExists) {
     "admin",
   );
 }
+
 
 // Seed Subjects if none exist
 const subjectsCount = db
