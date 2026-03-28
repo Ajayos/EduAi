@@ -62,6 +62,7 @@ db.exec(`
     name TEXT,
     username TEXT UNIQUE,
     password TEXT,
+    department TEXT,
     isClassTeacher BOOLEAN DEFAULT 0,
     assignedClass TEXT,
     assignedSemester INTEGER
@@ -204,6 +205,7 @@ db.exec(`
     student_id INTEGER,
     semester INTEGER,
     cgpa REAL,
+    UNIQUE(student_id, semester),
     FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
   );
 
@@ -589,7 +591,7 @@ app.post("/api/auth/login", (req, res) => {
   }
 
   const token = jwt.sign(
-    { id: user.id, username: user.username, role: detectedRole },
+    { id: user.id, username: user.username, role: detectedRole, name: user.name },
     JWT_SECRET,
   );
   res.json({
@@ -624,7 +626,7 @@ app.get("/api/admin/teachers", authenticateToken, (req, res) => {
   if (req.user.role !== "admin") return res.sendStatus(403);
   const teachers = db
     .prepare(
-      "SELECT id, name, username, isClassTeacher, assignedClass, assignedSemester FROM teachers",
+      "SELECT id, name, username, department, isClassTeacher, assignedClass, assignedSemester FROM teachers",
     )
     .all();
   res.json(teachers);
@@ -651,13 +653,20 @@ app.delete("/api/admin/teachers/:id", authenticateToken, (req, res) => {
 
 app.put("/api/admin/teachers/:id", authenticateToken, (req, res) => {
   if (req.user.role !== "admin") return res.sendStatus(403);
-  const { name, username, isClassTeacher, assignedClass, assignedSemester } =
-    req.body;
+  const {
+    name,
+    username,
+    department,
+    isClassTeacher,
+    assignedClass,
+    assignedSemester,
+  } = req.body;
   db.prepare(
-    "UPDATE teachers SET name = ?, username = ?, isClassTeacher = ?, assignedClass = ?, assignedSemester = ? WHERE id = ?",
+    "UPDATE teachers SET name = ?, username = ?, department = ?, isClassTeacher = ?, assignedClass = ?, assignedSemester = ? WHERE id = ?",
   ).run(
     name,
     username,
+    department,
     isClassTeacher ? 1 : 0,
     assignedClass,
     assignedSemester,
@@ -672,6 +681,7 @@ app.post("/api/admin/teachers", authenticateToken, (req, res) => {
     name,
     username,
     password,
+    department,
     isClassTeacher,
     assignedClass,
     assignedSemester,
@@ -684,13 +694,13 @@ app.post("/api/admin/teachers", authenticateToken, (req, res) => {
   try {
     // Check if username exists in any role table
     const admin = db
-      .prepare("SELECT id FROM admins WHERE username = ?")
+      .prepare("SELECT id FROM admins WHERE LOWER(username) = LOWER(?)")
       .get(username);
     const teacher = db
-      .prepare("SELECT id FROM teachers WHERE username = ?")
+      .prepare("SELECT id FROM teachers WHERE LOWER(username) = LOWER(?)")
       .get(username);
     const student = db
-      .prepare("SELECT id FROM students WHERE username = ?")
+      .prepare("SELECT id FROM students WHERE LOWER(username) = LOWER(?)")
       .get(username);
 
     if (admin || teacher || student) {
@@ -700,12 +710,13 @@ app.post("/api/admin/teachers", authenticateToken, (req, res) => {
     const hashedPassword = bcrypt.hashSync(password, 10);
     const result = db
       .prepare(
-        "INSERT INTO teachers (name, username, password, isClassTeacher, assignedClass, assignedSemester) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO teachers (name, username, password, department, isClassTeacher, assignedClass, assignedSemester) VALUES (?, ?, ?, ?, ?, ?, ?)",
       )
       .run(
         name,
         username,
         hashedPassword,
+        department,
         isClassTeacher ? 1 : 0,
         assignedClass,
         assignedSemester,
@@ -2468,6 +2479,144 @@ generatedData = JSON.parse(jsonMatch[0]);
   }
 });
 
+// CGPA Management
+// GET all CGPA records for a student
+app.get("/api/cgpa/:studentId", authenticateToken, (req, res) => {
+  const records = db.prepare(
+    "SELECT semester, cgpa FROM cgpa WHERE student_id = ? ORDER BY semester ASC"
+  ).all(req.params.studentId);
+  res.json(records);
+});
+
+// PUT upsert CGPA for a specific semester
+app.put("/api/cgpa/:studentId/:semester", authenticateToken, (req, res) => {
+  if (req.user.role !== "teacher" && req.user.role !== "admin") return res.sendStatus(403);
+  const { cgpa } = req.body;
+  if (cgpa === undefined || cgpa < 0 || cgpa > 10) {
+    return res.status(400).json({ message: "CGPA must be between 0 and 10" });
+  }
+  db.prepare(`
+    INSERT INTO cgpa (student_id, semester, cgpa)
+    VALUES (?, ?, ?)
+    ON CONFLICT(student_id, semester) DO UPDATE SET cgpa = excluded.cgpa
+  `).run(req.params.studentId, req.params.semester, cgpa);
+  res.json({ success: true });
+});
+
+// Teacher Attendance Analytics
+// GET /api/teacher/attendance/subject-wise - Returns attendance logs for teacher's subjects
+app.get("/api/teacher/attendance/subject-wise", authenticateToken, (req, res) => {
+  if (req.user.role !== "teacher" && req.user.role !== "admin") return res.sendStatus(403);
+  const { subject_id, dateFrom, dateTo } = req.query;
+
+  let query = `
+    SELECT a.id, a.status, a.date, a.student_id,
+           s.name as student_name, s.class as student_class, s.semester,
+           sub.name as subject_name, sub.id as subject_id
+    FROM attendance a
+    JOIN students s ON a.student_id = s.id
+    JOIN subjects sub ON a.subject_id = sub.id
+    JOIN teacher_subjects ts ON ts.subject_id = sub.id
+    WHERE ts.teacher_id = ?
+  `;
+  const params = [req.user.id];
+
+  if (subject_id) { query += " AND a.subject_id = ?"; params.push(subject_id); }
+  if (dateFrom)   { query += " AND a.date >= ?";      params.push(dateFrom); }
+  if (dateTo)     { query += " AND a.date <= ?";      params.push(dateTo); }
+
+  query += " ORDER BY a.date DESC, sub.name ASC";
+
+  try {
+    const logs = db.prepare(query).all(...params);
+    res.json(logs);
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+});
+
+// GET /api/teacher/attendance/class-wise - Returns attendance logs for a given class/semester
+app.get("/api/teacher/attendance/class-wise", authenticateToken, (req, res) => {
+  if (req.user.role !== "teacher" && req.user.role !== "admin") return res.sendStatus(403);
+  const { className, semester, dateFrom, dateTo } = req.query;
+
+  let query = `
+    SELECT a.id, a.status, a.date, a.student_id,
+           s.name as student_name, s.class as student_class, s.semester,
+           sub.name as subject_name, sub.id as subject_id
+    FROM attendance a
+    JOIN students s ON a.student_id = s.id
+    JOIN subjects sub ON a.subject_id = sub.id
+    JOIN teacher_subjects ts ON ts.subject_id = sub.id
+    WHERE ts.teacher_id = ?
+  `;
+  const params = [req.user.id];
+
+  if (className) { query += " AND LOWER(s.class) = LOWER(?)"; params.push(className); }
+  if (semester)  { query += " AND s.semester = ?";             params.push(semester); }
+  if (dateFrom)  { query += " AND a.date >= ?";               params.push(dateFrom); }
+  if (dateTo)    { query += " AND a.date <= ?";               params.push(dateTo); }
+
+  query += " ORDER BY a.date DESC, s.name ASC";
+
+  try {
+    const logs = db.prepare(query).all(...params);
+    res.json(logs);
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+});
+
+// Bulk Attendance
+app.get("/api/teacher/students/filter", authenticateToken, (req, res) => {
+  if (req.user.role !== "teacher" && req.user.role !== "admin") return res.sendStatus(403);
+  const { className, semester } = req.query;
+  let query = "SELECT id, name, username, class, semester FROM students";
+  let params = [];
+  
+  if (className || semester) {
+    query += " WHERE";
+    if (className) {
+      query += " LOWER(class) = LOWER(?)";
+      params.push(className);
+    }
+    if (semester) {
+      if (className) query += " AND";
+      query += " semester = ?";
+      params.push(semester);
+    }
+  }
+  
+  const students = db.prepare(query).all(...params);
+  res.json(students);
+});
+
+app.post("/api/attendance/bulk", authenticateToken, (req, res) => {
+  if (req.user.role !== "teacher" && req.user.role !== "admin") return res.sendStatus(403);
+  const { subject_id, date, time, attendanceRecords } = req.body;
+  
+  if (!subject_id || !date || !attendanceRecords || !Array.isArray(attendanceRecords)) {
+    return res.status(400).json({ message: "Invalid request data" });
+  }
+
+  const insert = db.prepare(
+    "INSERT INTO attendance (student_id, subject_id, date, status) VALUES (?, ?, ?, ?)"
+  );
+
+  const transaction = db.transaction((records) => {
+    for (const record of records) {
+      insert.run(record.student_id, subject_id, date, record.status);
+    }
+  });
+
+  try {
+    transaction(attendanceRecords);
+    res.json({ success: true, message: `Attendance recorded for ${attendanceRecords.length} students` });
+  } catch (e) {
+    res.status(400).json({ message: e.message });
+  }
+});
+
 // 404 handler for API routes
 app.use("/api/*", (req, res) => {
   res.status(404).json({ message: `API route ${req.originalUrl} not found` });
@@ -2489,6 +2638,8 @@ if (process.env.NODE_ENV !== "production") {
     res.sendFile(path.join(__dirname, "dist", "index.html"));
   });
 }
+
+
 
 // Global Error Handler
 app.use((err, req, res, next) => {

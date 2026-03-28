@@ -4,443 +4,574 @@ import {
   Search,
   CheckCircle,
   X,
-  Clock,
   BookOpen,
   Calendar,
   UserCheck,
   UserX,
   AlertCircle,
+  List,
+  LayoutGrid,
+  Filter,
+  ChevronDown,
+  ChevronRight,
+  Users,
+  ClipboardCheck,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-const STATUS_CONFIG = {
-  Present: { icon: UserCheck, color: "emerald", label: "Present" },
-  Absent:  { icon: UserX,    color: "red",     label: "Absent"  },
-  Late:    { icon: AlertCircle, color: "orange", label: "Late"  },
+// ── Constants ────────────────────────────────────────────────────────────────
+const CLASSES = [
+  "Computer Science","Data Science","Artificial Intelligence",
+  "Electrical","Electronics","Civil","Robotics","Biomedical",
+];
+const SEMESTERS = [1, 2, 3, 4, 5, 6, 7, 8];
+
+const STATUS_COLORS = {
+  Present: { bg: "bg-emerald-100", text: "text-emerald-700", dot: "bg-emerald-500" },
+  Absent:  { bg: "bg-red-100",     text: "text-red-700",     dot: "bg-red-500"     },
+  Late:    { bg: "bg-orange-100",  text: "text-orange-700",  dot: "bg-orange-500"  },
 };
 
+// ── Pill badge ────────────────────────────────────────────────────────────────
+function StatusBadge({ status }) {
+  const cfg = STATUS_COLORS[status] || STATUS_COLORS.Present;
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${cfg.bg} ${cfg.text}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+      {status}
+    </span>
+  );
+}
+
+// ── Main Component ────────────────────────────────────────────────────────────
 export default function AttendanceManagement() {
-  const [students, setStudents] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedStudent, setSelectedStudent] = useState(null);
-  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+  // ── view state ──────────────────────────────────────────────────────────────
+  const [activeView, setActiveView] = useState("subject"); // "subject" | "class"
+
+  // ── shared data ──────────────────────────────────────────────────────────────
+  const [subjects, setSubjects] = useState([]);
   const [attendanceLogs, setAttendanceLogs] = useState([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
-  const [attendanceData, setAttendanceData] = useState({
-    subject_id: "",
-    status: "Present",
-    date: new Date().toISOString().split("T")[0],
-    time: new Date().toTimeString().slice(0, 5),
-  });
-  const [subjects, setSubjects] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  // ── subject-wise filters ─────────────────────────────────────────────────────
+  const [subjectFilter, setSubjectFilter] = useState({
+    subject_id: "",
+    dateFrom: "",
+    dateTo: "",
+  });
+
+  // ── class-wise filters ──────────────────────────────────────────────────────
+  const [classFilter, setClassFilter] = useState({
+    className: "",
+    semester: "",
+    dateFrom: "",
+    dateTo: "",
+  });
+
+  // ── bulk marking modal ──────────────────────────────────────────────────────
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkConfig, setBulkConfig] = useState({
+    className:   "",
+    semester:    1,
+    subject_id:  "",
+    date:        new Date().toISOString().split("T")[0],
+  });
+  const [bulkStudents, setBulkStudents] = useState([]);
+  const [loadingBulkStudents, setLoadingBulkStudents] = useState(false);
+  const [submittingBulk,      setSubmittingBulk]      = useState(false);
+
+  // ── expanded rows ────────────────────────────────────────────────────────────
+  const [expanded, setExpanded] = useState({});
+
+  // ── init ────────────────────────────────────────────────────────────────────
   useEffect(() => {
-    fetchData();
+    fetchSubjects();
   }, []);
 
-  const fetchData = async () => {
+  useEffect(() => {
+    fetchAttendance();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView, subjectFilter, classFilter]);
+
+  // ── data fetchers ───────────────────────────────────────────────────────────
+  const fetchSubjects = async () => {
     try {
-      setLoading(true);
-      const [studentsRes, subjectsRes] = await Promise.all([
-        api.getStudents(),
-        api.getTeacherSubjects(),
-      ]);
-      setStudents(studentsRes);
-      setSubjects(subjectsRes);
-      if (subjectsRes.length > 0) {
-        setAttendanceData(prev => ({ ...prev, subject_id: subjectsRes[0].id }));
+      const res = await api.getTeacherSubjects();
+      setSubjects(res);
+      if (res.length > 0) {
+        setSubjectFilter(prev => ({ ...prev, subject_id: res[0].id }));
+        setBulkConfig(prev  => ({ ...prev, subject_id:  res[0].id }));
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { console.error(e); }
   };
 
-  const fetchStudentAttendance = async (studentId) => {
+  const fetchAttendance = async () => {
     setLoadingLogs(true);
+    setError("");
     try {
-      const data = await api.getStudentAttendance(studentId);
-      setAttendanceLogs(data);
-    } catch (err) {
-      console.error(err);
-      setAttendanceLogs([]);
+      if (activeView === "subject") {
+        const data = await api.getAttendanceSubjectWise(subjectFilter);
+        setAttendanceLogs(data);
+      } else {
+        const data = await api.getAttendanceClassWise(classFilter);
+        setAttendanceLogs(data);
+      }
+    } catch (e) {
+      setError(e.message);
     } finally {
       setLoadingLogs(false);
     }
   };
 
-  const openModal = async (student) => {
-    setSelectedStudent(student);
+  // ── bulk helpers ─────────────────────────────────────────────────────────────
+  const fetchBulkStudents = async () => {
+    if (!bulkConfig.className) {
+      setError("Please select a class first.");
+      return;
+    }
+    setLoadingBulkStudents(true);
+    setError("");
+    try {
+      const data = await api.getStudentsByFilter(bulkConfig.className, bulkConfig.semester);
+      setBulkStudents(data.map(s => ({ ...s, status: "Present" })));
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoadingBulkStudents(false);
+    }
+  };
+
+  const toggleBulkStudent = (idx, status) => {
+    setBulkStudents(prev => {
+      const copy = [...prev];
+      copy[idx] = { ...copy[idx], status };
+      return copy;
+    });
+  };
+
+  const submitBulkAttendance = async () => {
+    if (bulkStudents.length === 0) return;
+    setSubmittingBulk(true);
     setError("");
     setSuccess("");
-    setShowAttendanceModal(true);
-    await fetchStudentAttendance(student.id);
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setSuccess("");
     try {
-      await api.addAttendance({ ...attendanceData, student_id: selectedStudent.id });
-      setSuccess(`Attendance logged for ${selectedStudent.name}!`);
-      await fetchStudentAttendance(selectedStudent.id);
-      fetchData();
-    } catch (err) {
-      setError(err.message);
+      await api.addBulkAttendance({
+        subject_id: bulkConfig.subject_id,
+        date: bulkConfig.date,
+        attendanceRecords: bulkStudents.map(s => ({ student_id: s.id, status: s.status })),
+      });
+      setSuccess(`✅ Attendance submitted for ${bulkStudents.length} students!`);
+      setShowBulkModal(false);
+      setBulkStudents([]);
+      fetchAttendance();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSubmittingBulk(false);
     }
   };
 
-  const handleUpdateLog = async (logId, newStatus, date, time) => {
-    try {
-      await api.updateAttendance(logId, { status: newStatus, date, time });
-      await fetchStudentAttendance(selectedStudent.id);
-      fetchData();
-    } catch (err) {
-      setError(err.message);
-    }
-  };
+  // ── group logs ───────────────────────────────────────────────────────────────
+  const groupKey = activeView === "subject" ? "subject_name" : "student_class";
 
-  const handleDeleteLog = async (logId) => {
-    if (!window.confirm("Delete this attendance entry?")) return;
-    try {
-      await api.deleteAttendance(logId);
-      await fetchStudentAttendance(selectedStudent.id);
-      fetchData();
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
-  // Group logs by subject
-  const groupedLogs = (attendanceLogs || []).reduce((acc, log) => {
-    const key = log.subject || log.subject_name || `Subject ${log.subject_id}`;
+  const grouped = attendanceLogs.reduce((acc, log) => {
+    const key = log[groupKey] || "Unknown";
     if (!acc[key]) acc[key] = [];
     acc[key].push(log);
     return acc;
   }, {});
 
-  const filteredStudents = students.filter(
-    (s) =>
-      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.username.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
+  // ── attendance stats for a group ─────────────────────────────────────────────
+  const stats = (logs) => {
+    const present = logs.filter(l => l.status === "Present").length;
+    const absent  = logs.filter(l => l.status === "Absent").length;
+    const rate    = logs.length ? Math.round((present / logs.length) * 100) : 0;
+    return { present, absent, total: logs.length, rate };
+  };
 
+  // ── renders ──────────────────────────────────────────────────────────────────
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
-      {/* Header */}
+    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
+      {/* ── Header ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-slate-900">Attendance Tracker</h1>
-          <p className="text-slate-500 mt-1 font-medium">
-            Log and review subject-wise class attendance
-          </p>
+          <h1 className="text-3xl font-black text-slate-900">Attendance Manager</h1>
+          <p className="text-slate-500 mt-1 font-medium">Track and manage student attendance by subject or class</p>
         </div>
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-          <input
-            type="text"
-            placeholder="Search students..."
-            className="pl-12 pr-6 py-3 bg-white border border-slate-200 rounded-2xl w-full md:w-80 outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <button
+          onClick={() => { setShowBulkModal(true); setBulkStudents([]); setError(""); }}
+          className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 whitespace-nowrap"
+        >
+          <ClipboardCheck size={20} />
+          Mark Class Attendance
+        </button>
+      </div>
+
+      {/* ── Alerts ── */}
+      {error   && <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-3 rounded-2xl font-medium">{error}</div>}
+      {success && <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-6 py-3 rounded-2xl font-medium">{success}</div>}
+
+      {/* ── View toggle ── */}
+      <div className="flex gap-2 bg-slate-100 p-1.5 rounded-2xl w-fit">
+        {[
+          { id: "subject", label: "Subject-wise", icon: BookOpen },
+          { id: "class",   label: "Class-wise",   icon: Users    },
+        ].map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => setActiveView(id)}
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all ${
+              activeView === id
+                ? "bg-white text-blue-600 shadow-md"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            <Icon size={16} /> {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Filters ── */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+        <div className="flex items-center gap-2 mb-5">
+          <Filter size={16} className="text-slate-400" />
+          <h3 className="font-bold text-slate-700 text-sm uppercase tracking-widest">Filters</h3>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {activeView === "subject" ? (
+            <>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Subject</label>
+                <select
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 text-sm"
+                  value={subjectFilter.subject_id}
+                  onChange={e => setSubjectFilter(p => ({ ...p, subject_id: e.target.value }))}
+                >
+                  <option value="">All Subjects</option>
+                  {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">From Date</label>
+                <input type="date" className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 text-sm"
+                  value={subjectFilter.dateFrom} onChange={e => setSubjectFilter(p => ({ ...p, dateFrom: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">To Date</label>
+                <input type="date" className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 text-sm"
+                  value={subjectFilter.dateTo} onChange={e => setSubjectFilter(p => ({ ...p, dateTo: e.target.value }))} />
+              </div>
+              <div className="flex items-end">
+                <button onClick={() => setSubjectFilter({ subject_id: "", dateFrom: "", dateTo: "" })}
+                  className="w-full py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all">
+                  Clear Filters
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Class</label>
+                <select className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 text-sm"
+                  value={classFilter.className} onChange={e => setClassFilter(p => ({ ...p, className: e.target.value }))}>
+                  <option value="">All Classes</option>
+                  {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Semester</label>
+                <select className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 text-sm"
+                  value={classFilter.semester} onChange={e => setClassFilter(p => ({ ...p, semester: e.target.value }))}>
+                  <option value="">All Sems</option>
+                  {SEMESTERS.map(s => <option key={s} value={s}>Sem {s}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">From Date</label>
+                <input type="date" className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 text-sm"
+                  value={classFilter.dateFrom} onChange={e => setClassFilter(p => ({ ...p, dateFrom: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">To Date</label>
+                <input type="date" className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 text-sm"
+                  value={classFilter.dateTo} onChange={e => setClassFilter(p => ({ ...p, dateTo: e.target.value }))} />
+              </div>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Student Table */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Student</th>
-                <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Class & Sem</th>
-                <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Attendance</th>
-                <th className="px-8 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {loading ? (
-                <tr><td colSpan={4} className="px-8 py-12 text-center text-slate-400">Loading students...</td></tr>
-              ) : filteredStudents.length === 0 ? (
-                <tr><td colSpan={4} className="px-8 py-12 text-center text-slate-400">No students found</td></tr>
-              ) : (
-                filteredStudents.map((student) => (
-                  <tr key={student.id} className="hover:bg-slate-50/50 transition-all group">
-                    <td className="px-8 py-6">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-emerald-100 text-emerald-700 rounded-xl flex items-center justify-center font-black text-lg">
-                          {student.name.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-bold text-slate-900">{student.name}</p>
-                          <p className="text-xs text-slate-500">@{student.username}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6">
-                      <p className="font-medium text-slate-700">{student.class}</p>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Semester {student.semester}</p>
-                    </td>
-                    <td className="px-8 py-6">
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1 w-24 bg-slate-100 h-2 rounded-full overflow-hidden max-w-[80px]">
-                          <div
-                            className={`h-full ${(student.attendance || 0) >= 75 ? "bg-emerald-500" : "bg-orange-500"}`}
-                            style={{ width: `${student.attendance || 0}%` }}
-                          />
-                        </div>
-                        <span className="font-bold text-slate-700 text-sm">{student.attendance || 0}%</span>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6">
-                      <button
-                        onClick={() => openModal(student)}
-                        className="flex items-center gap-2 text-xs font-bold text-emerald-700 hover:text-white bg-emerald-50 hover:bg-emerald-600 px-4 py-2.5 rounded-xl transition-all shadow-sm"
-                      >
-                        <Clock size={14} />
-                        Manage Attendance
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Attendance Modal */}
-      <AnimatePresence>
-        {showAttendanceModal && selectedStudent && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: 30 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 30 }}
-              className="w-full max-w-4xl bg-white rounded-[3rem] shadow-2xl flex flex-col relative overflow-hidden max-h-[90vh]"
-            >
-              {/* Header */}
-              <div className="relative bg-gradient-to-br from-emerald-500 via-teal-600 to-cyan-700 p-8 text-white shrink-0">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-5">
-                    <div className="w-16 h-16 bg-white/10 backdrop-blur-md rounded-2xl border-2 border-white/20 flex items-center justify-center text-3xl font-black">
-                      {selectedStudent.name.charAt(0)}
+      {/* ── Attendance Log ── */}
+      <div className="space-y-4">
+        {loadingLogs ? (
+          <div className="bg-white rounded-3xl border border-slate-200 p-16 text-center text-slate-400">
+            <div className="w-8 h-8 border-3 border-blue-300 border-t-blue-600 rounded-full animate-spin mx-auto mb-4" />
+            Loading attendance...
+          </div>
+        ) : Object.keys(grouped).length === 0 ? (
+          <div className="bg-white rounded-3xl border border-slate-200 p-16 text-center">
+            <BookOpen size={48} className="mx-auto text-slate-200 mb-4" />
+            <p className="text-slate-400 font-medium">No attendance records found.</p>
+            <p className="text-slate-300 text-sm mt-1">Try adjusting your filters or mark attendance first.</p>
+          </div>
+        ) : (
+          Object.entries(grouped).map(([groupName, logs]) => {
+            const { present, absent, total, rate } = stats(logs);
+            const isOpen = expanded[groupName] !== false;
+            return (
+              <motion.div
+                key={groupName}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm"
+              >
+                {/* Group header */}
+                <button
+                  className="w-full flex items-center justify-between p-6 hover:bg-slate-50 transition-all"
+                  onClick={() => setExpanded(prev => ({ ...prev, [groupName]: !isOpen }))}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center font-black">
+                      {isOpen ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
                     </div>
-                    <div>
-                      <span className="px-3 py-1 bg-white/10 border border-white/20 rounded-full text-[10px] font-bold uppercase tracking-widest text-emerald-100 mb-2 inline-block">
-                        Attendance Management
-                      </span>
-                      <h2 className="text-2xl font-black tracking-tight">{selectedStudent.name}</h2>
-                      <p className="text-emerald-100 text-sm">{selectedStudent.class} • Sem {selectedStudent.semester}</p>
+                    <div className="text-left">
+                      <p className="font-black text-slate-900">{groupName}</p>
+                      <p className="text-xs text-slate-400 font-medium">{total} entries</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setShowAttendanceModal(false)}
-                    className="bg-white/10 hover:bg-white/20 border border-white/20 text-white p-3 rounded-full transition-all"
-                  >
+                  <div className="flex items-center gap-4">
+                    <div className="flex gap-3 text-sm">
+                      <span className="flex items-center gap-1.5 font-bold text-emerald-600">
+                        <UserCheck size={14} /> {present}
+                      </span>
+                      <span className="flex items-center gap-1.5 font-bold text-red-500">
+                        <UserX size={14} /> {absent}
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <span className={`text-lg font-black ${rate >= 75 ? "text-emerald-600" : "text-orange-500"}`}>{rate}%</span>
+                      <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden mt-1">
+                        <div className={`h-full ${rate >= 75 ? "bg-emerald-500" : "bg-orange-500"}`} style={{ width: `${rate}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Log rows */}
+                {isOpen && (
+                  <div className="border-t border-slate-100 divide-y divide-slate-50">
+                    {/* sub-header */}
+                    <div className="grid grid-cols-4 px-6 py-2 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      <span>Student</span>
+                      <span>{activeView === "subject" ? "Class / Sem" : "Subject"}</span>
+                      <span>Date</span>
+                      <span>Status</span>
+                    </div>
+                    {logs.map(log => (
+                      <div key={log.id} className="grid grid-cols-4 px-6 py-4 items-center hover:bg-slate-50/50 transition-all">
+                        <div>
+                          <p className="font-bold text-slate-800 text-sm">{log.student_name}</p>
+                          <p className="text-xs text-slate-400">ID #{log.student_id}</p>
+                        </div>
+                        <div className="text-sm">
+                          {activeView === "subject" ? (
+                            <>
+                              <p className="font-medium text-slate-700 capitalize">{log.student_class}</p>
+                              <p className="text-xs text-slate-400">Sem {log.semester}</p>
+                            </>
+                          ) : (
+                            <p className="font-medium text-slate-700">{log.subject_name}</p>
+                          )}
+                        </div>
+                        <p className="text-sm font-medium text-slate-600">{log.date}</p>
+                        <StatusBadge status={log.status} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            );
+          })
+        )}
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          Bulk Attendance Modal
+      ══════════════════════════════════════════════════════════════════════ */}
+      <AnimatePresence>
+        {showBulkModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl flex flex-col max-h-[90vh]"
+            >
+              {/* Modal Header */}
+              <div className="px-8 pt-8 pb-6 border-b border-slate-100 shrink-0">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-black text-slate-900">Mark Class Attendance</h2>
+                    <p className="text-slate-500 mt-1">Select a class, load students, then mark each as present or absent</p>
+                  </div>
+                  <button onClick={() => setShowBulkModal(false)} className="p-3 hover:bg-slate-100 rounded-2xl transition-all">
                     <X size={22} />
                   </button>
                 </div>
               </div>
 
-              <div className="overflow-y-auto flex-1 p-8 space-y-8 bg-slate-50">
-                
-                {/* Log New Entry */}
-                <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-8">
-                  <h3 className="text-sm font-black text-emerald-600 uppercase tracking-widest mb-6 flex items-center gap-2">
-                    <CheckCircle size={16} /> Log New Entry
-                  </h3>
-
-                  {success && (
-                    <div className="mb-4 p-4 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-2xl text-sm font-bold flex items-center gap-2">
-                      <CheckCircle size={16} /> {success}
-                    </div>
-                  )}
-                  {error && (
-                    <div className="mb-4 p-4 bg-red-50 border border-red-100 text-red-600 rounded-2xl text-sm font-bold">
-                      {error}
-                    </div>
-                  )}
-
-                  <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Subject */}
-                      <div>
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Subject</label>
-                        <div className="relative">
-                          <BookOpen className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                          <select
-                            className="w-full pl-10 pr-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-700"
-                            value={attendanceData.subject_id}
-                            onChange={(e) => setAttendanceData({ ...attendanceData, subject_id: e.target.value })}
-                          >
-                            {subjects.length === 0 && <option value="">No subjects assigned</option>}
-                            {subjects.map(s => (
-                              <option key={s.id} value={s.id}>{s.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-
-                      {/* Status */}
-                      <div>
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Status</label>
-                        <div className="flex gap-2">
-                          {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
-                            const Icon = cfg.icon;
-                            const isActive = attendanceData.status === key;
-                            return (
-                              <button
-                                key={key}
-                                type="button"
-                                onClick={() => setAttendanceData({ ...attendanceData, status: key })}
-                                className={`flex-1 flex flex-col items-center gap-1 py-3 rounded-2xl border-2 font-bold text-xs transition-all ${
-                                  isActive
-                                    ? `bg-${cfg.color}-500 border-${cfg.color}-500 text-white shadow-lg`
-                                    : `bg-slate-50 border-slate-200 text-slate-500 hover:border-${cfg.color}-300`
-                                }`}
-                              >
-                                <Icon size={18} />
-                                {cfg.label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      {/* Date */}
-                      <div>
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Date</label>
-                        <div className="relative">
-                          <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                          <input
-                            type="date"
-                            required
-                            className="w-full pl-10 pr-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-700"
-                            value={attendanceData.date}
-                            onChange={(e) => setAttendanceData({ ...attendanceData, date: e.target.value })}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Time */}
-                      <div>
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Class Time</label>
-                        <div className="relative">
-                          <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                          <input
-                            type="time"
-                            required
-                            className="w-full pl-10 pr-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-700"
-                            value={attendanceData.time}
-                            onChange={(e) => setAttendanceData({ ...attendanceData, time: e.target.value })}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={subjects.length === 0}
-                      className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black tracking-wide hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-100 hover:shadow-xl hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed"
+              {/* Step 1 — Config */}
+              <div className="px-8 py-6 border-b border-slate-100 shrink-0">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Step 1 — Choose Class & Subject</p>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  {/* Class */}
+                  <div className="col-span-1 space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Class</label>
+                    <select
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700 text-sm"
+                      value={bulkConfig.className}
+                      onChange={e => setBulkConfig(p => ({ ...p, className: e.target.value }))}
                     >
-                      Confirm Attendance
+                      <option value="">Select…</option>
+                      {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  {/* Semester */}
+                  <div className="col-span-1 space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Semester</label>
+                    <select
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700 text-sm"
+                      value={bulkConfig.semester}
+                      onChange={e => setBulkConfig(p => ({ ...p, semester: parseInt(e.target.value) }))}
+                    >
+                      {SEMESTERS.map(s => <option key={s} value={s}>Sem {s}</option>)}
+                    </select>
+                  </div>
+                  {/* Subject */}
+                  <div className="col-span-1 space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Subject</label>
+                    <select
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700 text-sm"
+                      value={bulkConfig.subject_id}
+                      onChange={e => setBulkConfig(p => ({ ...p, subject_id: e.target.value }))}
+                    >
+                      <option value="">Select…</option>
+                      {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
+                  {/* Date */}
+                  <div className="col-span-1 space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Date</label>
+                    <input
+                      type="date"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700 text-sm"
+                      value={bulkConfig.date}
+                      onChange={e => setBulkConfig(p => ({ ...p, date: e.target.value }))}
+                    />
+                  </div>
+                  {/* Load button */}
+                  <div className="col-span-1 flex items-end">
+                    <button
+                      onClick={fetchBulkStudents}
+                      disabled={loadingBulkStudents || !bulkConfig.className}
+                      className="w-full py-3 bg-slate-900 text-white rounded-2xl font-bold text-sm hover:bg-slate-700 transition-all disabled:opacity-40"
+                    >
+                      {loadingBulkStudents ? "Loading…" : "Load Students"}
                     </button>
-                  </form>
-                </div>
-
-                {/* Attendance History grouped by Subject */}
-                <div className="space-y-4">
-                  <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                    <BookOpen size={16} /> Attendance Records by Subject
-                  </h3>
-
-                  {loadingLogs ? (
-                    <div className="p-8 text-center text-slate-400 font-medium bg-white rounded-2xl border border-slate-100">Loading records...</div>
-                  ) : Object.keys(groupedLogs).length === 0 ? (
-                    <div className="p-8 text-center text-slate-400 font-medium bg-white rounded-2xl border border-dashed border-slate-200">
-                      No attendance records yet. Start logging above.
-                    </div>
-                  ) : (
-                    Object.entries(groupedLogs).map(([subjectName, logs]) => {
-                      const presentCount = logs.filter(l => l.status === "Present").length;
-                      const rate = ((presentCount / logs.length) * 100).toFixed(0);
-                      return (
-                        <div key={subjectName} className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
-                          {/* Subject Header */}
-                          <div className="flex items-center justify-between px-6 py-4 bg-slate-50 border-b border-slate-100">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center font-black text-sm">
-                                {subjectName.charAt(0)}
-                              </div>
-                              <p className="font-black text-slate-900">{subjectName}</p>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <div className={`px-3 py-1 rounded-xl text-xs font-black ${
-                                parseInt(rate) >= 75 ? "bg-emerald-50 text-emerald-700" : "bg-orange-50 text-orange-700"
-                              }`}>
-                                {rate}% Attendance
-                              </div>
-                              <span className="text-[10px] font-bold text-slate-400 uppercase">{logs.length} classes</span>
-                            </div>
-                          </div>                          {/* Log Rows */}
-                          <div className="divide-y divide-slate-50">
-                            {logs.sort((a, b) => (`${b.date} ${b.time || ''}`).localeCompare(`${a.date} ${a.time || ''}`)).map((log) => {
-                              const cfg = STATUS_CONFIG[log.status] || STATUS_CONFIG["Present"];
-                              const Icon = cfg.icon;
-                              return (
-                                <div key={log.id} className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors">
-                                  <div className="flex items-center gap-3">
-                                    <div className={`p-2 bg-${cfg.color}-50 text-${cfg.color}-600 rounded-xl`}>
-                                      <Icon size={14} />
-                                    </div>
-                                    <div>
-                                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1">
-                                        <Calendar size={10} /> {log.date}
-                                        {log.time && <><Clock size={10} className="ml-1" /> {log.time}</>}
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-1.5">
-                                    {["Present", "Late", "Absent"].map(s => (
-                                      <button
-                                        key={s}
-                                        onClick={() => handleUpdateLog(log.id, s, log.date, log.time)}
-                                        className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all ${
-                                          log.status === s
-                                            ? s === "Present" ? "bg-emerald-500 text-white" : s === "Late" ? "bg-orange-500 text-white" : "bg-red-500 text-white"
-                                            : "bg-slate-100 text-slate-400 hover:bg-slate-200"
-                                        }`}
-                                      >
-                                        {s}
-                                      </button>
-                                    ))}
-                                    <button
-                                      onClick={() => handleDeleteLog(log.id)}
-                                      className="ml-1 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                                    >
-                                      <X size={12} />
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-
-                        </div>
-                      );
-                    })
-                  )}
+                  </div>
                 </div>
               </div>
+
+              {/* Step 2 — Student list */}
+              <div className="flex-1 overflow-y-auto px-8 py-6">
+                {bulkStudents.length === 0 ? (
+                  <div className="h-full min-h-[200px] flex flex-col items-center justify-center text-slate-300 gap-3">
+                    <Users size={48} className="opacity-30" />
+                    <p className="font-medium text-slate-400">No students loaded.</p>
+                    <p className="text-sm text-slate-300">Select a class and click "Load Students" above.</p>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">
+                      Step 2 — Mark {bulkStudents.length} students
+                    </p>
+                    {/* Select all bar */}
+                    <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl mb-4">
+                      <span className="font-bold text-slate-600 text-sm">{bulkStudents.length} students in {bulkConfig.className}</span>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setBulkStudents(p => p.map(s => ({ ...s, status: "Present" })))}
+                          className="px-4 py-1.5 bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold hover:bg-emerald-200 transition-all"
+                        >All Present</button>
+                        <button
+                          onClick={() => setBulkStudents(p => p.map(s => ({ ...s, status: "Absent" })))}
+                          className="px-4 py-1.5 bg-red-100 text-red-700 rounded-xl text-xs font-bold hover:bg-red-200 transition-all"
+                        >All Absent</button>
+                      </div>
+                    </div>
+                    {/* Student rows */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {bulkStudents.map((student, idx) => (
+                        <div
+                          key={student.id}
+                          className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-2xl hover:border-blue-100 transition-all"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-black text-lg">
+                              {student.name.charAt(0)}
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-800 text-sm">{student.name}</p>
+                              <p className="text-xs text-slate-400">@{student.username}</p>
+                            </div>
+                          </div>
+                          <div className="flex gap-1.5">
+                            {["Present", "Absent"].map(s => (
+                              <button
+                                key={s}
+                                onClick={() => toggleBulkStudent(idx, s)}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                                  student.status === s
+                                    ? s === "Present"
+                                      ? "bg-emerald-500 text-white shadow-sm shadow-emerald-200"
+                                      : "bg-red-500 text-white shadow-sm shadow-red-200"
+                                    : "bg-slate-100 text-slate-400 hover:bg-slate-200"
+                                }`}
+                              >
+                                {s === "Present" ? "✓ Present" : "✗ Absent"}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              {bulkStudents.length > 0 && (
+                <div className="px-8 py-6 border-t border-slate-100 shrink-0 flex items-center justify-between">
+                  <div className="flex gap-4 text-sm font-bold">
+                    <span className="text-emerald-600">✓ {bulkStudents.filter(s => s.status === "Present").length} Present</span>
+                    <span className="text-red-500">✗ {bulkStudents.filter(s => s.status === "Absent").length} Absent</span>
+                  </div>
+                  <div className="flex gap-3">
+                    <button onClick={() => setShowBulkModal(false)} className="px-6 py-3 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-all">
+                      Cancel
+                    </button>
+                    <button
+                      onClick={submitBulkAttendance}
+                      disabled={submittingBulk || !bulkConfig.subject_id}
+                      className="px-8 py-3 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 disabled:opacity-50"
+                    >
+                      {submittingBulk ? "Submitting…" : "Submit Attendance"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </motion.div>
           </div>
         )}

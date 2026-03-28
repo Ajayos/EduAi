@@ -142,7 +142,7 @@ export default function StudentEditor() {
   return (
     <div className="h-[calc(100vh-8rem)] flex sm:flex-row flex-col gap-6 w-full max-w-7xl mx-auto">
       {/* Sidebar: Student List */}
-      <div className="w-full sm:w-1/3 md:w-80 bg-white rounded-[2rem] border border-slate-200 shadow-sm flex flex-col overflow-hidden shrink-0">
+      <div className="w-full sm:w-1/3 md:w-50 bg-white rounded-[2rem] border border-slate-200 shadow-sm flex flex-col overflow-hidden shrink-0">
         <div className="p-6 border-b border-slate-100 bg-slate-50/50">
           <h2 className="text-xl font-black text-slate-900 flex items-center gap-2 mb-4">
             <Users className="text-blue-600" size={24} /> Directory
@@ -158,7 +158,7 @@ export default function StudentEditor() {
             />
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
           {filteredStudents.length === 0 ? (
             <p className="text-center text-slate-400 text-sm py-8 font-medium">No students found.</p>
           ) : (
@@ -172,11 +172,7 @@ export default function StudentEditor() {
                     : "bg-white border-slate-100 hover:border-blue-200 hover:bg-blue-50/50"
                 }`}
               >
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-lg font-black shrink-0 transition-colors ${
-                  selectedStudent?.id === student.id ? "bg-white/20 text-white" : "bg-blue-100 text-blue-600 group-hover:bg-blue-200"
-                }`}>
-                  {student.name.charAt(0)}
-                </div>
+                
                 <div className="overflow-hidden">
                   <h3 className={`font-bold truncate ${selectedStudent?.id === student.id ? "text-white" : "text-slate-900"}`}>
                     {student.name}
@@ -195,7 +191,7 @@ export default function StudentEditor() {
       <div className="flex-1 bg-white rounded-[2rem] border border-slate-200 shadow-sm flex flex-col relative overflow-hidden h-full">
         {selectedStudent ? (
           <>
-            <div className="p-8 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white flex items-center gap-6 shrink-0 relative overflow-hidden">
+            <div className="p-3 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white flex items-center gap-6 shrink-0 relative overflow-hidden">
               <div className="w-20 h-20 bg-blue-100 rounded-[1.5rem] flex items-center justify-center text-3xl font-black text-blue-600 shrink-0 relative z-10 shadow-inner">
                 {selectedStudent.name.charAt(0)}
               </div>

@@ -8,6 +8,7 @@ import {
   TrendingUp,
   CheckCircle,
   BookOpen,
+  Sparkles,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -27,6 +28,7 @@ export default function StudentProfiles() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadingProfile, setLoadingProfile] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -45,9 +47,12 @@ export default function StudentProfiles() {
   };
 
   const handleViewProfile = async (student) => {
+    setSelectedStudent(student);
+    setProfileData(null);
+    setLoadingProfile(true);
+    setShowProfileModal(true);
     try {
-      setSelectedStudent(student);
-      console.log(student);
+      const data = await api.getStudentAnalytics(student.id);
       const marksData = data.marks || [];
       const subjectsWithDetailed = marksData.map(m => {
         let detailed = {
@@ -67,12 +72,12 @@ export default function StudentProfiles() {
         }
         return { ...m, detailed };
       });
-
       setProfileData({ ...data, marks: subjectsWithDetailed });
-      setShowProfileModal(true);
     } catch (err) {
       console.error(err);
-      alert("Failed to load student profile");
+      setShowProfileModal(false);
+    } finally {
+      setLoadingProfile(false);
     }
   };
 
@@ -184,15 +189,30 @@ export default function StudentProfiles() {
 
       {/* Profile Modal */}
       <AnimatePresence>
+        {/* Profile Loading Overlay */}
+        {showProfileModal && loadingProfile && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-white rounded-3xl p-12 flex flex-col items-center gap-6 shadow-2xl">
+              <div className="relative">
+                <div className="w-16 h-16 border-4 border-indigo-100 rounded-full" />
+                <div className="absolute inset-0 w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+              </div>
+              <div className="text-center">
+                <p className="font-black text-slate-800 text-lg">Analysing Student</p>
+                <p className="text-slate-400 text-sm mt-1 font-medium">Running ML predictor model…</p>
+              </div>
+            </div>
+          </div>
+        )}
         {showProfileModal && profileData && selectedStudent && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xl flex items-center justify-center z-50 p-4 lg:p-10">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xl flex items-center justify-center z-50 p-4 lg:p-5">
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 30 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 30 }}
               className="w-full max-w-6xl h-full max-h-[90vh] bg-white rounded-[3rem] shadow-2xl flex flex-col relative overflow-hidden ring-4 ring-white/20"
             >
-              <div className="relative bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 p-8 lg:p-12 text-white shrink-0">
+              <div className="relative bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 p-8 lg:p-4 text-white shrink-0">
                 <div className="relative z-10 flex items-start justify-between">
                   <div className="flex items-center gap-6 text-white">
                     <div className="w-24 h-24 bg-white/10 backdrop-blur-md rounded-[2rem] border-2 border-white/20 flex items-center justify-center text-5xl font-black shadow-2xl">
@@ -324,7 +344,7 @@ export default function StudentProfiles() {
                             { subject: "Theory", A: Math.max(50, profileData.totalModules), fullMark: 100 },
                             { subject: "Practicals", A: 85, fullMark: 100 },
                             { subject: "Attendance", A: selectedStudent.attendance, fullMark: 100 },
-                            { subject: "Assignments", A: profileData.detailedMarks.assignment * 5, fullMark: 100 },
+                            { subject: "Assignments", A: (profileData.detailedMarks?.assignment ?? 0) * 5, fullMark: 100 },
                             { subject: "Exams", A: profileData.totalInternals, fullMark: 100 }
                           ]}>
                             <PolarGrid stroke="#e2e8f0" />
@@ -398,6 +418,17 @@ export default function StudentProfiles() {
                         </div>
                       </div>
                     </div>
+                    {profileData.aiSummary && (
+                      <div className="bg-indigo-600 rounded-[2.5rem] p-8 text-white shadow-xl shadow-indigo-100">
+                        <div className="flex items-center gap-3 mb-4">
+                          <Sparkles size={20} className="text-indigo-300" />
+                          <h4 className="font-bold text-sm uppercase tracking-widest text-indigo-100">Internal AI Insight</h4>
+                        </div>
+                        <p className="text-sm font-medium leading-relaxed italic opacity-90">
+                          "{profileData.aiSummary}"
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

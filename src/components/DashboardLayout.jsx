@@ -70,7 +70,11 @@ export default function DashboardLayout({ children, activeTab, setActiveTab }) {
           {filteredMenu.map((item) => (
             <button
               key={item.label}
-              onClick={() => setActiveTab?.(item.label)}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setActiveTab?.(item.label);
+              }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all group ${
                 activeTab === item.label
                   ? "bg-blue-600 text-white shadow-lg shadow-blue-200"

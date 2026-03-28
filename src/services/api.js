@@ -116,6 +116,32 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  getStudentsByFilter: (className, semester) => {
+    const params = new URLSearchParams();
+    if (className) params.append("className", className);
+    if (semester) params.append("semester", semester);
+    return request(`/teacher/students/filter?${params.toString()}`);
+  },
+  addBulkAttendance: (data) =>
+    request("/attendance/bulk", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getAttendanceSubjectWise: (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.subject_id) params.append("subject_id", filters.subject_id);
+    if (filters.dateFrom)   params.append("dateFrom", filters.dateFrom);
+    if (filters.dateTo)     params.append("dateTo", filters.dateTo);
+    return request(`/teacher/attendance/subject-wise?${params.toString()}`);
+  },
+  getAttendanceClassWise: (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.className)  params.append("className", filters.className);
+    if (filters.semester)   params.append("semester", filters.semester);
+    if (filters.dateFrom)   params.append("dateFrom", filters.dateFrom);
+    if (filters.dateTo)     params.append("dateTo", filters.dateTo);
+    return request(`/teacher/attendance/class-wise?${params.toString()}`);
+  },
   getAssignments: () => request("/teacher/assignments"),
   createAssignment: (data) =>
     request("/teacher/assignments", {

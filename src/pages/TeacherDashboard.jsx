@@ -167,7 +167,11 @@ export default function TeacherDashboard({ setActiveTab }) {
         });
         setLoading(false);
       },
-    );
+    ).catch(err => {
+      console.error("Dashboard stats fetch failed:", err);
+      setError("Failed to load dashboard statistics. Please refresh.");
+      setLoading(false);
+    });
   };
 
   useEffect(() => {
@@ -1167,7 +1171,7 @@ export default function TeacherDashboard({ setActiveTab }) {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 
                 {/* Left Column: Grade Calculation */}
-                <div className="lg:col-span-2 space-y-8">
+                <div className="lg:col-span-2 space-y-6">
                   <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3">
                     <TrendingUp className="text-blue-500" /> Academic Breakdown
                   </h3>
