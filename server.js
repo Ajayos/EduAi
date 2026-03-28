@@ -242,65 +242,24 @@ db.exec(`
 
 // ── Database Migration System (Robust Schema Evolution) ────────────────────────
 // This ensures that existing databases built with older versions get updated.
-const migrations = {
-  teachers: [
-    { name: "department", type: "TEXT" },
-    { name: "isClassTeacher", type: "BOOLEAN DEFAULT 0" },
-    { name: "assignedClass", type: "TEXT" },
-    { name: "assignedSemester", type: "INTEGER" }
-  ],
-  students: [
-    { name: "tenthMarks", type: "REAL" },
-    { name: "twelfthMarks", type: "REAL" },
-    { name: "fatherName", type: "TEXT" },
-    { name: "motherName", type: "TEXT" },
-    { name: "fatherNumber", type: "TEXT" },
-    { name: "motherNumber", type: "TEXT" },
-    { name: "problemSubjects", type: "TEXT" },
-    { name: "problemTopics", type: "TEXT" }
-  ],
-  attendance: [
-    { name: "time", type: "TEXT" }
-  ],
-  marks: [
-    { name: "detailed_data", type: "TEXT" }
-  ],
-  flashcards: [
-    { name: "subject_id", type: "INTEGER" },
-    { name: "student_id", type: "INTEGER" },
-    { name: "level", type: "TEXT DEFAULT 'Beginner'" }
-  ],
-  quizzes: [
-    { name: "subject_id", type: "INTEGER" },
-    { name: "student_id", type: "INTEGER" },
-    { name: "level", type: "TEXT DEFAULT 'Beginner'" }
-  ],
-  assignments: [
-    { name: "file_url", type: "TEXT" }
-  ],
-  achievements: [
-    { name: "description", type: "TEXT" }
-  ],
-  subjects: [
-    { name: "year", type: "INTEGER DEFAULT 1" }
-  ]
-};
-
+// ── Database Migration System (Robust Schema Evolution) ────────────────────────
 Object.entries(migrations).forEach(([table, columns]) => {
   try {
-    const currentColumns = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
+    const tableInfo = db.prepare(`PRAGMA table_info(${table})`).all();
+    const currentColumns = tableInfo.map(c => c.name);
+    
     columns.forEach(col => {
       if (!currentColumns.includes(col.name)) {
         try {
           db.exec(`ALTER TABLE ${table} ADD COLUMN ${col.name} ${col.type}`);
           console.log(`Migration: Added ${col.name} to ${table} table.`);
-        } catch (e) {
-          console.error(`Migration Failed for ${table}.${col.name}:`, e.message);
+        } catch (err) {
+          console.error(`Migration error for ${table}.${col.name}:`, err.message);
         }
       }
     });
-  } catch (e) {
-    console.error(`Migration Check Failed for table ${table}:`, e.message);
+  } catch (err) {
+    console.error(`Failed to check schema for table ${table}:`, err.message);
   }
 });
 
@@ -1876,6 +1835,46 @@ app.delete("/api/flashcards/:id", authenticateToken, (req, res) => {
   res.json({ success: true });
 });
 
+// Flashcards Viewed Tracking
+app.post("/api/flashcards/:id/view", authenticateToken, (req, res) => {
+  const { id } = req.params;
+  try {
+    const flashcard = db.prepare(`
+      SELECT f.teacher_id, f.question, t.name as teacher_name 
+      FROM flashcards f 
+      JOIN teachers t ON f.teacher_id = t.id 
+      WHERE f.id = ?
+    `).get(id);
+
+    if (flashcard) {
+      db.prepare(
+        "INSERT INTO notifications (user_id, role, message) VALUES (?, 'teacher', ?)"
+      ).run(
+        flashcard.teacher_id,
+        `Student ${req.user.name} viewed your flashcard: ${flashcard.question.substring(0, 30)}...`
+      );
+    }
+    res.json({ success: true });
+  } catch (e) {
+    res.status(400).json({ message: e.message });
+  }
+});
+
+// Student Rewards (Stars)
+app.post("/api/students/:id/stars", authenticateToken, (req, res) => {
+  if (req.user.role === "student") return res.sendStatus(403);
+  const { id } = req.params;
+  try {
+    db.prepare("UPDATE students SET stars = stars + 1 WHERE id = ?").run(id);
+    db.prepare(
+      "INSERT INTO notifications (user_id, role, message) VALUES (?, 'student', ?)"
+    ).run(id, `Congratulations! Teacher ${req.user.name} awarded you a Star! 🌟`);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(400).json({ message: e.message });
+  }
+});
+
 // Achievements
 app.get("/api/achievements", authenticateToken, (req, res) => {
   const achievements = db
@@ -1959,7 +1958,13 @@ app.get("/api/analytics/student/:id", authenticateToken, async (req, res) => {
       : 0;
 
   // Prediction Logic
-  const latestCgpa = cgpas.length > 0 ? cgpas[cgpas.length - 1].cgpa : 0;
+  let latestCgpa = cgpas.length > 0 ? cgpas[cgpas.length - 1].cgpa : 0;
+  
+  // HEURISTIC: Handle students with no historical CGPA data (e.g. Semester 1)
+  if (latestCgpa === 0 && avgMarks > 0) {
+    latestCgpa = Math.min(10, avgMarks / 10);
+  }
+
   const performanceScore =
     latestCgpa * 10 * 0.4 + attendanceRate * 0.2 + avgMarks * 0.3 + 70 * 0.1;
 
