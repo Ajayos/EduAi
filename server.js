@@ -12,6 +12,7 @@ import fs from "fs";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 
+const { execSync, spawn } = require("child_process");
 const pdf = require("pdf-parse"); // ✅ works with CommonJS
 
 dotenv.config();
@@ -1153,6 +1154,54 @@ app.delete("/api/admin/subjects/:id", authenticateToken, (req, res) => {
   }
 });
 
+app.put("/api/admin/subjects/:id", authenticateToken, (req, res) => {
+  if (req.user.role !== "admin") return res.sendStatus(403);
+  const { name, semester, class: className, year } = req.body;
+  try {
+    const finalYear = year || Math.ceil(semester / 2);
+    db.prepare(
+      "UPDATE subjects SET name = ?, semester = ?, class = ?, year = ? WHERE id = ?",
+    ).run(name, semester, className, finalYear, req.params.id);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(400).json({ message: e.message });
+  }
+});
+
+app.get("/api/admin/teachers/:id/subjects", authenticateToken, (req, res) => {
+  if (req.user.role !== "admin") return res.sendStatus(403);
+  const subjects = db
+    .prepare(
+      "SELECT s.* FROM subjects s JOIN teacher_subjects ts ON s.id = ts.subject_id WHERE ts.teacher_id = ?",
+    )
+    .all(req.params.id);
+  res.json(subjects);
+});
+
+app.post("/api/admin/teachers/:id/subjects", authenticateToken, (req, res) => {
+  if (req.user.role !== "admin") return res.sendStatus(403);
+  const teacherId = req.params.id;
+  const { subject_ids } = req.body;
+
+  try {
+    const transaction = db.transaction(() => {
+      db.prepare("DELETE FROM teacher_subjects WHERE teacher_id = ?").run(
+        teacherId,
+      );
+      const insert = db.prepare(
+        "INSERT INTO teacher_subjects (teacher_id, subject_id) VALUES (?, ?)",
+      );
+      for (const sid of subject_ids) {
+        insert.run(teacherId, sid);
+      }
+    });
+    transaction();
+    res.json({ success: true });
+  } catch (e) {
+    res.status(400).json({ message: e.message });
+  }
+});
+
 // Assignments
 app.get("/api/teacher/subjects", authenticateToken, (req, res) => {
   if (req.user.role === "admin") {
@@ -1374,7 +1423,8 @@ app.put("/api/student/profile", authenticateToken, (req, res) => {
     motherName, 
     fatherNumber, 
     motherNumber, 
-    problemSubjects 
+    problemSubjects,
+    problemTopics
   } = req.body;
 
   try {
@@ -1396,7 +1446,7 @@ app.put("/api/student/profile", authenticateToken, (req, res) => {
       motherName,
       fatherNumber,
       motherNumber,
-      JSON.stringify(problemSubjects),
+      JSON.stringify(problemSubjects || []),
       JSON.stringify(problemTopics || []),
       req.user.id
     );
@@ -1819,7 +1869,7 @@ app.get("/api/achievements", authenticateToken, (req, res) => {
 });
 
 // Analytics & Prediction
-app.get("/api/analytics/student/:id", authenticateToken, (req, res) => {
+app.get("/api/analytics/student/:id", authenticateToken, async (req, res) => {
   const studentId = req.params.id;
   const marks = db
     .prepare(
@@ -2120,16 +2170,70 @@ app.get("/api/analytics/student/:id", authenticateToken, (req, res) => {
     })
     .filter((t) => t !== null);
 
+  // --- Start Python AI Prediction ---
+  let aiData = null;
+  const pythonPath = process.env.PYTHON_PATH || "python";
+  const studentFullData = {
+    name: studentInfo.name,
+    class: studentInfo.class,
+    semester: studentInfo.semester,
+    marks: marks.map(m => ({ subject: m.subject, marks: m.marks })),
+    attendanceRate,
+    cgpaTrend: cgpas,
+    problemSubjects
+  };
+
+  try {
+    const runAiPredictor = () => {
+      return new Promise((resolve, reject) => {
+        const pythonProcess = spawn(pythonPath, ["ai_predictor.py"]);
+        let output = "";
+        let errorOutput = "";
+
+        pythonProcess.stdout.on("data", (data) => { output += data; });
+        pythonProcess.stderr.on("data", (data) => { errorOutput += data; });
+
+        pythonProcess.on("close", (code) => {
+          if (code === 0) {
+            try {
+              resolve(JSON.parse(output));
+            } catch (e) {
+              reject(new Error("Failed to parse AI output: " + output));
+            }
+          } else {
+            reject(new Error(`Predictor failed (code ${code}): ${errorOutput}`));
+          }
+        });
+
+        pythonProcess.stdin.write(JSON.stringify(studentFullData));
+        pythonProcess.stdin.end();
+      });
+    };
+
+    aiData = await runAiPredictor();
+    console.log("AI Predictor Result:", aiData);
+  } catch (err) {
+    console.error("AI Predictor failed:", err.message);
+  }
+
+  const finalPrediction = aiData?.prediction || prediction;
+  const finalScore = aiData?.performanceScore || performanceScore;
+  const finalRecommendation = aiData?.recommendation || recommendation;
+  const finalProblemAdvice = (aiData?.insights || []).length > 0 
+      ? aiData.insights.map(i => ({ subject: i.subject, advice: i.advice }))
+      : problem_subjects_advice;
+
   res.json({
     marks,
     attendanceRate,
     cgpaTrend: cgpas,
-    prediction,
-    performanceScore,
-    recommendation,
-    problem_subjects_advice,
+    prediction: finalPrediction,
+    performanceScore: finalScore,
+    recommendation: finalRecommendation,
+    problem_subjects_advice: finalProblemAdvice,
     lowestSubject,
     subject_tips,
+    aiSummary: aiData?.overallSummary || "AI Insights temporarily unavailable."
   });
 });
 

@@ -6,11 +6,14 @@ import {
   ShieldCheck,
   ShieldAlert,
   Search,
+  Edit,
   MoreVertical,
   X,
   Bell,
   Sparkles,
-  BookOpen
+  BookOpen,
+  Save,
+  User
 } from "lucide-react";
 import { motion } from "framer-motion";
 import ConfirmationModal from "../components/ConfirmationModal";
@@ -31,6 +34,7 @@ export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
   const [faculty, setFaculty] = useState([]);
   const [showAddMarks, setShowAddMarks] = useState(false);
   const [showAddAttendance, setShowAddAttendance] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const [newMark, setNewMark] = useState({
     subject_id: "",
     marks: 50,
@@ -70,6 +74,7 @@ export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
   });
   const [broadcastMessage, setBroadcastMessage] = useState("");
   const [isBroadcasting, setIsBroadcasting] = useState(false);
+  const [selectedTeacherForAssignment, setSelectedTeacherForAssignment] = useState(null);
   const [latestNotification, setLatestNotification] = useState(null);
   const [showSubjectModal, setShowSubjectModal] = useState(false);
   const [currentTeacher, setCurrentTeacher] = useState(null);
@@ -316,6 +321,11 @@ export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
     }
   };
 
+  const handleEditSubject = (subject) => {
+    setSelectedItem({ ...subject, type: "subject" });
+    setShowEditModal(true);
+  };
+
   const handleEdit = (item) => {
     setSelectedItem(item);
     setShowEditModal(true);
@@ -326,11 +336,15 @@ export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
     try {
       if (activeSubTab === "faculty") {
         await api.updateTeacher(selectedItem.id, selectedItem);
+        fetchTeachers();
+      } else if (activeSubTab === "subjects" || selectedItem.type === "subject") {
+        await api.updateSubject(selectedItem.id, selectedItem);
+        fetchSubjects();
       } else {
         await api.updateStudent(selectedItem.id, selectedItem);
+        fetchStudents();
       }
       setShowEditModal(false);
-      activeSubTab === "faculty" ? fetchTeachers() : fetchStudents();
     } catch (err) {
       alert(err.message);
     }
@@ -401,6 +415,12 @@ export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
           className={`px-6 py-3 font-bold transition-all border-b-2 ${activeSubTab === "subjects" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}
         >
           Subject Manager
+        </button>
+        <button
+          onClick={() => setActiveSubTab("assignment")}
+          className={`px-6 py-3 font-bold transition-all border-b-2 ${activeSubTab === "assignment" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}
+        >
+          Subject Assignment
         </button>
       </div>
 
@@ -494,13 +514,22 @@ export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
                     Year {subject.year || Math.ceil(subject.semester / 2)}
                   </td>
                   <td className="px-6 py-4">
-                    <button
-                      onClick={() => confirmDelete(subject)}
-                      className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                      title="Delete Subject"
-                    >
-                      <Trash2 size={20} />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleEditSubject(subject)}
+                        className="p-2 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                        title="Edit Subject"
+                      >
+                        <Edit size={20} />
+                      </button>
+                      <button
+                        onClick={() => confirmDelete(subject)}
+                        className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                        title="Delete Subject"
+                      >
+                        <Trash2 size={20} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -564,8 +593,9 @@ export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
                       <button
                         onClick={() => handleEdit(teacher)}
                         className="p-2 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                        title="Edit Faculty"
                       >
-                        <Search size={20} />
+                        <Edit size={20} />
                       </button>
                       <button
                         onClick={() => handleOpenSubjectModal(teacher)}
@@ -586,6 +616,141 @@ export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
               ))}
             </tbody>
           </table>
+        </div>
+      ) : activeSubTab === "assignment" ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Teacher List */}
+          <div className="lg:col-span-1 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[600px]">
+            <div className="p-6 border-b border-slate-100 bg-slate-50">
+              <h3 className="font-bold text-slate-800 mb-4 tracking-tight">Select Faculty</h3>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <input
+                  type="text"
+                  placeholder="Search faculty..."
+                  className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  onChange={(e) => {
+                    const term = e.target.value.toLowerCase();
+                    setSearchTerm(term); // Reusing existing search term or can use a local one
+                  }}
+                />
+              </div>
+            </div>
+            <div className="overflow-y-auto flex-1 divide-y divide-slate-50">
+              {teachers.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase())).map((teacher) => (
+                <button
+                  key={teacher.id}
+                  onClick={async () => {
+                    setSelectedTeacherForAssignment(teacher);
+                    try {
+                      const res = await api.getTeacherAssignedSubjects(teacher.id);
+                      setAssignedSubjects(res.map((s) => s.id));
+                    } catch (err) {
+                      console.error(err);
+                    }
+                  }}
+                  className={`w-full text-left px-6 py-4 hover:bg-slate-50 transition-all ${selectedTeacherForAssignment?.id === teacher.id ? 'bg-blue-50 border-r-4 border-blue-500' : ''}`}
+                >
+                  <p className="font-bold text-slate-900">{teacher.name}</p>
+                  <p className="text-xs text-slate-500">{teacher.username}</p>
+                  {teacher.isClassTeacher && (
+                    <span className="inline-block mt-1 px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded text-[10px] font-bold">
+                      Class Teacher
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Subject Assignment Grid */}
+          <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col h-[600px]">
+            <div className="p-6 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-slate-800 tracking-tight">
+                  {selectedTeacherForAssignment ? `Assign Subjects to ${selectedTeacherForAssignment.name}` : 'Assign Subjects'}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {selectedTeacherForAssignment ? 'Select subjects for this faculty member' : 'Select a faculty member from the left to manage their subjects'}
+                </p>
+              </div>
+              {selectedTeacherForAssignment && (
+                <button
+                  onClick={async () => {
+                    try {
+                      await api.assignSubjectToTeacher(selectedTeacherForAssignment.id, {
+                        subject_ids: assignedSubjects,
+                      });
+                      alert("Subjects assigned successfully!");
+                    } catch (err) {
+                      alert(err.message);
+                    }
+                  }}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 flex items-center gap-2"
+                >
+                  <Save size={16} /> Save Changes
+                </button>
+              )}
+            </div>
+            
+            <div className="overflow-y-auto flex-1 p-6">
+              {selectedTeacherForAssignment ? (
+                <div className="space-y-8">
+                  {classes.map((className) => (
+                    <div key={className}>
+                      <h4 className="flex items-center gap-2 font-black text-slate-900 mb-4 text-xs uppercase tracking-widest bg-slate-50 p-2 rounded-lg">
+                        <span className="w-1.5 h-1.5 bg-blue-600 rounded-full" />
+                        Class {className}
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ml-2">
+                        {subjects
+                          .filter((s) => s.class === className)
+                          .map((subject) => (
+                            <label
+                              key={subject.id}
+                              className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all cursor-pointer group hover:shadow-md ${assignedSubjects.includes(subject.id) ? 'bg-blue-50/50 border-blue-500' : 'bg-slate-50/50 border-transparent border-dashed hover:border-slate-200'}`}
+                            >
+                              <div className="relative flex items-center">
+                                <input
+                                  type="checkbox"
+                                  className="w-6 h-6 rounded-lg border-2 border-slate-300 text-blue-600 focus:ring-4 focus:ring-blue-100 transition-all"
+                                  checked={assignedSubjects.includes(subject.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setAssignedSubjects([...assignedSubjects, subject.id]);
+                                    } else {
+                                      setAssignedSubjects(assignedSubjects.filter((id) => id !== subject.id));
+                                    }
+                                  }}
+                                />
+                              </div>
+                              <div className="flex-1">
+                                <p className="font-bold text-slate-900 leading-tight">
+                                  {subject.name}
+                                </p>
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                  Sem {subject.semester} • Year {subject.year || Math.ceil(subject.semester / 2)}
+                                </p>
+                              </div>
+                            </label>
+                          ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-slate-400 p-12 text-center">
+                  <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                    <User size={40} />
+                  </div>
+                  <p className="font-bold text-slate-600">No Faculty Selected</p>
+                  <p className="text-sm max-w-[250px] mt-1">
+                    Select a faculty member from the list to start assigning subjects.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       ) : (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
@@ -1236,6 +1401,88 @@ export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
                     </div>
                   </div>
                 </>
+              ) : selectedItem.type === "subject" ? (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Subject Name
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                      value={selectedItem.name}
+                      onChange={(e) =>
+                        setSelectedItem({ ...selectedItem, name: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Class
+                      </label>
+                      <select
+                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                        value={selectedItem.class}
+                        onChange={(e) =>
+                          setSelectedItem({
+                            ...selectedItem,
+                            class: e.target.value,
+                          })
+                        }
+                      >
+                        {classes.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Semester
+                      </label>
+                      <select
+                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                        value={selectedItem.semester}
+                        onChange={(e) =>
+                          setSelectedItem({
+                            ...selectedItem,
+                            semester: parseInt(e.target.value),
+                          })
+                        }
+                      >
+                        {semesters.map((s) => (
+                          <option key={s} value={s}>
+                            Sem {s}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Year
+                    </label>
+                    <select
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"
+                      value={selectedItem.year}
+                      onChange={(e) =>
+                        setSelectedItem({
+                          ...selectedItem,
+                          year: parseInt(e.target.value),
+                        })
+                      }
+                    >
+                      {[1, 2, 3, 4].map((y) => (
+                        <option key={y} value={y}>
+                          Year {y}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               ) : (
                 <div className="grid grid-cols-2 gap-4">
                   <div>

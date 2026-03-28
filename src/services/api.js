@@ -75,6 +75,11 @@ export const api = {
   deleteStudent: (id) => request(`/admin/students/${id}`, { method: "DELETE" }),
   createSubject: (data) =>
     request("/admin/subjects", { method: "POST", body: JSON.stringify(data) }),
+  updateSubject: (id, data) =>
+    request(`/admin/subjects/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   deleteSubject: (id) => request(`/admin/subjects/${id}`, { method: "DELETE" }),
   uploadFile: (file) => {
     const formData = new FormData();
