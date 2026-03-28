@@ -199,6 +199,15 @@ export default function MarksManagement() {
                       <button
                         onClick={() => {
                           setSelectedStudent(student);
+                          // Reset modal state
+                          setNewMark({
+                            subject_id: subjects.length > 0 ? subjects[0].id.toString() : "",
+                            semester: student.semester || 1,
+                            teacher_id: faculty.length > 0 ? faculty[0].id.toString() : "",
+                            modules: [0,0,0,0,0],
+                            internals: [0,0],
+                            assignment: 0
+                          });
                           setShowAddMarksModal(true);
                         }}
                         className="flex items-center gap-2 text-xs font-bold text-blue-600 hover:text-white bg-blue-50 hover:bg-blue-600 px-4 py-2 rounded-xl transition-all shadow-sm"
@@ -249,7 +258,7 @@ export default function MarksManagement() {
                     <div>
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Calculated Score</p>
                       <p className="text-xl font-black text-slate-900">
-                        {((newMark.modules.reduce((a,b)=>a+b,0) + newMark.internals.reduce((a,b)=>a+b,0) + Number(newMark.assignment)) / 220 * 100).toFixed(1)}%
+                        {((newMark.modules.reduce((a,b)=>a+b,0) + newMark.internals.reduce((a,b)=>a+b,0) + Number(newMark.assignment)) / 250 * 100).toFixed(1)}%
                       </p>
                     </div>
                   </div>
@@ -336,12 +345,12 @@ export default function MarksManagement() {
                         </div>
                       </div>
                       <div className="col-span-1">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Assignment (20)</p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Assignment (50)</p>
                         <input
-                          type="number" min="0" max="20"
+                          type="number" min="0" max="50"
                           className="w-full px-3 py-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-black text-center text-slate-900"
                           value={newMark.assignment}
-                          onChange={(e) => setNewMark({...newMark, assignment: Math.min(20, Math.max(0, parseInt(e.target.value) || 0))})}
+                          onChange={(e) => setNewMark({...newMark, assignment: Math.min(50, Math.max(0, parseInt(e.target.value) || 0))})}
                         />
                       </div>
                     </div>

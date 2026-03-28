@@ -86,10 +86,17 @@ def get_model():
     global _model_cache
 
     if _model_cache is not None:
+        if hasattr(_model_cache, "n_features_in_") and _model_cache.n_features_in_ != 7:
+            _model_cache = train_model()
         return _model_cache
 
     if os.path.exists(MODEL_PATH):
-        _model_cache = joblib.load(MODEL_PATH)
+        try:
+            _model_cache = joblib.load(MODEL_PATH)
+            if hasattr(_model_cache, "n_features_in_") and _model_cache.n_features_in_ != 7:
+                _model_cache = train_model()
+        except Exception:
+            _model_cache = train_model()
     else:
         _model_cache = train_model()
 
@@ -191,6 +198,18 @@ def predict(student_data):
                 "advice": advice
             })
 
+        # ENHANCED MESSAGE GENERATION (More "Advisor" like)
+        msg_parts = [f"Analysis for {name}: {prediction} standing."]
+        if risk_flags:
+            msg_parts.append(f"Critical focus needed on {', '.join(risk_flags)}.")
+        
+        if confidence > 90:
+            msg_parts.append("Prediction confidence is very high.")
+        
+        msg_parts.append(f"Based on CGPA trends, we forecast a potential shift to {round(predicted_cgpa, 2)} CGPA in the upcoming term.")
+        
+        message = " ".join(msg_parts)
+
         return {
             "prediction": prediction,
             "confidence": round(confidence, 2),
@@ -200,7 +219,7 @@ def predict(student_data):
                 "expectedCGPA": round(predicted_cgpa, 2)
             },
             "insights": insights,
-            "message": f"{name} is classified as '{prediction}' with {confidence:.1f}% confidence."
+            "message": message
         }
 
     except Exception as e:

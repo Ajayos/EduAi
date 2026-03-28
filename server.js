@@ -1011,15 +1011,24 @@ app.post("/api/marks", authenticateToken, (req, res) => {
     const internalsSum = (d.internals || []).reduce((a, b) => a + (Number(b) || 0), 0);
     const assignmentScore = Number(d.assignment) || 0;
     
-    // grandTotal / 220 * 100
+    // grandTotal / 250 * 100 (Increased from 220 to 250 for 50-mark assignments)
     const grandTotal = modulesSum + internalsSum + assignmentScore;
-    finalMarks = Math.round((grandTotal / 220) * 100);
+    finalMarks = Math.round((grandTotal / 250) * 100);
     detailedJson = JSON.stringify(detailed_data);
   }
 
-  db.prepare(
-    "INSERT INTO marks (student_id, subject_id, semester, marks, teacher_id, detailed_data) VALUES (?, ?, ?, ?, ?, ?)",
-  ).run(student_id, subject_id, semester, finalMarks, finalTeacherId, detailedJson);
+  // UPSERT LOGIC: Check if marks already exist for this student, subject, and semester
+  const existing = db.prepare("SELECT id FROM marks WHERE student_id = ? AND subject_id = ? AND semester = ?").get(student_id, subject_id, semester);
+
+  if (existing) {
+    db.prepare(
+      "UPDATE marks SET marks = ?, teacher_id = ?, detailed_data = ? WHERE id = ?",
+    ).run(finalMarks, finalTeacherId, detailedJson, existing.id);
+  } else {
+    db.prepare(
+      "INSERT INTO marks (student_id, subject_id, semester, marks, teacher_id, detailed_data) VALUES (?, ?, ?, ?, ?, ?)",
+    ).run(student_id, subject_id, semester, finalMarks, finalTeacherId, detailedJson);
+  }
 
   // Notify student
   const subject = db
@@ -1028,7 +1037,7 @@ app.post("/api/marks", authenticateToken, (req, res) => {
   const subjectName = subject ? subject.name : `Subject ID ${subject_id}`;
   db.prepare(
     "INSERT INTO notifications (user_id, role, message) VALUES (?, 'student', ?)",
-  ).run(student_id, `New marks added for ${subjectName}: ${finalMarks}% (Detailed logged)`);
+  ).run(student_id, `${existing ? 'Updated' : 'New'} marks added for ${subjectName}: ${finalMarks}% (Detailed logged)`);
 
   res.json({ success: true, marks: finalMarks });
 });
@@ -1963,74 +1972,111 @@ app.get("/api/analytics/student/:id", authenticateToken, async (req, res) => {
   else if (performanceScore >= 70) prediction = "Good";
   else if (performanceScore >= 50) prediction = "Needs Improvement";
 
-  // Diverse AI Insights Pool (>50 items randomized)
+  // Massive AI Insights Pool (Expansive and Natural-Sounding Advice)
   const insightsPool = {
     Excellent: [
-      "Your academic momentum is truly impressive! To reach the next level, consider mentoring peers or engaging in advanced research projects in your field.",
-      "You are consistently outperforming expectations. This is a great time to explore competitive programming or industry certifications to complement your high CGPA.",
-      "Extraordinary consistency! You've mastered the core concepts. We recommend diving into specialized electives that challenge your current understanding even further.",
-      "Your performance is top-tier. Maintain this focus while also building a professional portfolio on GitHub to showcase your technical excellence to future employers.",
-      "Brilliant work across all subjects! You have the potential to lead student organizations or technical clubs. Your balanced approach to study is a model for others.",
-      "You've achieved a significant milestone. Keep pushing your boundaries with interdisciplinary projects that combine your strongest subjects for innovative results.",
-      "Superior academic discipline! Use this strong foundation to start preparing for higher education entrance exams or prestigious internship opportunities early on.",
-      "You are in the top percentile. Focus on deep-tech applications of your subjects and consider publishing a blog post or paper on your recent learnings.",
-      "Outstanding results! Your dedication is paying off. To maintain this lead, keep up with the latest industry trends by following top-tier tech journals.",
-      "You've mastered the art of learning. Challenge yourself by taking on a complex capstone project that solves a real-world problem using your diverse skill set.",
-      "Exceptional academic record! Consider applying for undergraduate research assistantships to gain hands-on experience in your favorite subject area.",
-      "You are setting a high bar for excellence. Focus on developing soft skills like leadership and communication to match your strong technical foundation.",
-      "Brilliant performance! We recommend exploring open-source contributions to real-world projects to apply your classroom knowledge in a global context.",
-      "Your consistency is a major asset. Keep refining your problem-solving techniques and consider participating in national-level technical competitions.",
-      "You've reached a peak performance level. To keep your edge, try teaching a complex topic to a peer; it's the ultimate test of true mastery."
+      "Your academic momentum is truly impressive! Continue this trajectory and you'll be a prime candidate for top-tier master's programs or R&D roles.",
+      "Consistently setting the bar high! Consider building a personal project portfolio to showcase how you apply these high grades to real problems.",
+      "Exceptional results. This is the perfect time to start peer-tutoring or contributing to open-source; it will reinforce your mastery even further.",
+      "You've mastered the 'how' of learning. Now focus on the 'why' by exploring industry applications of your favorite subjects.",
+      "Remarkable consistency! Your balanced approach between internals and assignments is exactly what recruiters look for in high-potential graduates.",
+      "A proactive and disciplined approach. We recommend exploring certifications like AWS, Azure, or Google Cloud to complement your stellar CGPA.",
+      "Your analytical skills are top-notch. Try taking on a complex capstone project early to put your multi-subject knowledge to the test.",
+      "Maintain this focus! You are in the top 5% of the database. Focus on honing your leadership and soft skills to match your technical prowess.",
+      "Brilliant performance across the board. Have you considered exploring undergraduate research fellowship opportunities this summer?",
+      "You're a high-flyer. Keep your edge by staying updated with latest journals and technical blogs relevant to your core subjects.",
+      "Impressive work! Use your deep understanding to help others in study groups; it's the ultimate way to prove you truly know the material.",
+      "You have achieved an elite status. We recommend looking into hackathons and national-level competitions to test your skills in new environments.",
+      "A stellar performance record. Focus on deepening your understanding of algorithms and system design to excel in future interviews.",
+      "Consistency is your superpower. Your ability to handle a heavy course load with such precision is a testament to your focus.",
+      "Excellent work! Start thinking about your long-term career goals. With these grades, almost any door is open for you.",
+      "You've shown a rare level of academic maturity. Consider taking a leadership role in technical workshops to share your knowledge.",
+      "Outstanding! Your ability to link different subjects together for a holistic understanding is a key strength. Keep it up.",
+      "You're a top performer. Focus on building a professional network on LinkedIn to leverage these stellar academic results for internships.",
+      "Bravo! Your consistency in both theory and practicals is commendable. A future in research or high-end engineering looks very bright.",
+      "You are setting a high standard for your peers. Maintain this discipline while expanding into interdisciplinary technical domains.",
+      "Remarkable focus! Consider aiming for a 10/10 semester; you have the foundation and the work ethic to achieve it.",
+      "Your performance is a blueprint for success. Use this momentum to tackle the most complex elective subjects next semester.",
+      "Exceptional dedication! We recommend exploring advanced seminars or Moocs that go beyond the standard university syllabus.",
+      "You have mastered the curriculum. Challenge yourself by solving real-world case studies related to your core engineering subjects."
     ],
     Good: [
-      "You have a solid foundation! A slight increase in your attendance could push your overall performance into the 'Excellent' category. Consistency is the key now.",
-      "Great job so far. You're performing well in most areas, but focusing a bit more on your assignments could significantly boost your internal marks next semester.",
-      "You're on the right track. Try to participate more in class discussions to deepen your understanding and gain more confidence in your subject knowledge.",
-      "Good steady progress. We recommend setting up a weekly review session for your most challenging subjects to turn those 'Good' grades into 'Excellent' ones.",
-      "Your performance is reliable and strong. To break through to the top tier, dedicate an extra hour each day to practicing problem-solving in core subjects.",
-      "You've shown great potential. Focus on time management during exams to ensure you can adequately address every question and maximize your scoring potential.",
-      "Healthy performance! You've got the basics down. Now is the time to start applying your knowledge through small side projects or coding challenges.",
-      "Strong work. Your attendance is good, but your quiz scores show room for improvement. Regular revision of class notes will help you bridge that gap.",
-      "You are a consistent performer. To improve further, try to explain complex concepts to your classmates; it's the best way to solidify your own understanding.",
-      "Good performance! You are very close to the 'Excellent' bracket. Focus on refining your presentation skills and detail-oriented work in your assignments.",
-      "Strong steady progress. Consider setting up a dedicated 'deep work' block in your weekly schedule to tackle the most complex topics without distractions.",
-      "You're doing great! To boost your score further, focus on the 'Application' part of your core subjects, as these often carry higher marks in final exams.",
-      "Consistently good results. We recommend seeking out extra-credit assignments or advanced reading material to stay ahead of the standard curriculum.",
-      "You have a solid academic standing. Try to relate your theoretical learnings to real-life case studies to make the concepts more memorable and practical.",
-      "Great work this semester. A slightly more proactive approach in project-based learning could be the key to unlocking your next level of achievement."
+      "You're doing very well! To break into the 'Excellent' bracket, focus on those small assignment marks that can nudge your total higher.",
+      "Solid and dependable performance. A more iterative study pattern—reviewing notes immediately after class—could take you to the next level.",
+      "Great job so far. Your internal exams are strong, but there's a slight drop in assignment completion. Nailing those will boost your forecast.",
+      "You're on the right path. Try to engage more in class discussions to solidify abstract concepts and improve your confidence during vivas.",
+      "Healthy academic standing! We recommend dedicating an extra 20 minutes a day to practicing code or problems in your most challenging subject.",
+      "Your attendance is great, and your marks are good. To differentiate yourself, start a small GitHub project based on what you're learning.",
+      "Good steady progress. You have the foundation; now focus on 'Deep Work' sessions to master the more complex modules of the curriculum.",
+      "Consistent performer! Try experimenting with active recall techniques like flashcards to improve your retention for the final exams.",
+      "You're performing well above average. Reach out to your mentors for more challenging resource materials to keep your learning curve steep.",
+      "Nice work this term. A little more focus on the 'Application' part of your theory subjects will yield much higher marks in the long run.",
+      "Your foundation is strong. Focus on time management during exams to ensure you can adequately address every section and avoid stress.",
+      "Good performance. You are very close to a higher tier! Target the subject with the lowest score for a quick 'power boost' to your average.",
+      "A solid year so far. Maintain this consistency while gradually increasing your complexity of practice problems to stay ahead.",
+      "Reliable results. Consider taking on a small leadership role in a tech club to round out your profile as you maintain these good grades.",
+      "Well done. You have the potential to be a top student with just a 10% increase in focused revision time per week.",
+      "Great job. Your progress is steady. Try to focus on the 'why' behind the formulas to improve your problem-solving speed.",
+      "You're a solid performer. We recommend exploring extra-curricular technical projects to apply your good grades in practice.",
+      "Good work! You are nearing the 'Excellent' mark. Focus on perfect assignment submissions to get that extra percentage boost.",
+      "Healthy academic results. Try to maintain a consistent sleep schedule to ensure peak performance during those early morning lectures.",
+      "You've got a strong grip on the basics. Now, challenge yourself with 'Hard' level problems from the platform's quiz section.",
+      "Consistently good results. Consider forming a study group where you take the lead on topics you're most comfortable with.",
+      "You're performing well. To improve further, focus on the feedback from your last internal exam to address specific weak points.",
+      "Solid year so far. Keep this momentum going into the finals. A structured revision plan for the last month will be your best friend.",
+      "You have shown great improvement this term. Stay focused on the core subjects to ensure a strong finish to the semester."
     ],
     "Needs Improvement": [
-      "You're making an effort, but some areas need closer attention. We recommend setting daily study goals and seeking help from teachers for topics you find confusing.",
-      "Your attendance is a bit low, which is impacting your score. Try to be more regular in class to catch important hints and explanations from your professors.",
-      "You have the ability to do much better. Focus on completing your assignments on time as they carry significant weight in your overall academic performance score.",
-      "It's time to step up your revision game. Using flashcards for quick daily reviews could help you improve your retention and boost your quiz results quickly.",
-      "You're currently in the middle tier. Reorganizing your study space and creating a dedicated timetable will help you stay focused and improve your marks.",
-      "Don't get discouraged! Many students find this semester challenging. Form a study group with your peers to tackle difficult concepts together more effectively.",
-      "Check your attendance rate—it's currently a drag on your performance. Small changes in your daily routine can lead to much higher consistency in class.",
-      "Your internal marks are below average. Take advantage of office hours to clear your doubts early before the final exams approach. You can do this!",
-      "Focus on the 'Graph Theory' and 'Data Structures' modules specifically. Strengthening these will provide a much-needed boost to your overall technical grade.",
-      "You have potential that isn't fully reflected in your grades. Practice active listening in class and take structured notes to improve your understanding.",
-      "It's time to re-evaluate your study habits. Try the 'Active Recall' method to better prepare for quizzes and improve your subject-wise retention score.",
-      "You are standing on the edge of a breakthrough. Focus on completing 100% of your coursework this week to regain your academic momentum quickly.",
-      "Small, incremental improvements are your friend. Focus on mastering one small concept each day, and you'll see a significant cumulative effect in weeks.",
-      "Your current scores suggest some foundational gaps. Don't worry—reviewing the first few weeks of lecture notes will help you catch up effectively."
+      "You have the capability to be a top student. Let's start by improving your class attendance to catch those critical exam tips from faculty.",
+      "Some areas are currently vulnerable. We recommend a 'Priority Focus' on core subjects for the next 14 days to regain your footing.",
+      "Your assignments are dragging your score down. Set a weekend 'Catch-up' block to clear all pending tasks and improve your internals.",
+      "Don't get discouraged! The middle of the semester is always tough. Revisit the early model tests to rebuild your confidence in the basics.",
+      "You're making an effort, but inconsistencies in study habits are showing. Try the Pomodoro technique to stay focused for longer periods.",
+      "Your attendance rate is currently below 75%. This is the primary driver for the lower scores. Priority #1: Be present in every lecture.",
+      "Foundational gaps identified. It might be time for a 'Back-to-Basics' review session with a peer or a mentor for your core modules.",
+      "Your internal scores are fluctuating. Use the platform's quizzes twice a week to test your knowledge and find the exact topics that trip you up.",
+      "There's room for growth here. Start by setting 3 small daily study goals. Small wins today will lead to much larger wins by the finals.",
+      "Focus alert: Your current engagement in practicals is lower than expected. Hands-on practice will make the theories much easier to grasp.",
+      "It's time for a 'Course Correction'. Reach out to your teachers now—before the final rush—to clear your most critical doubts.",
+      "You are currently below your potential. Change your study environment once a week to stay fresh and avoid academic burnout.",
+      "Your current path is stable but slow. To accelerate your learning, try teaching a topic to a friend; it's the fastest way to find where you're stuck.",
+      "Check your assignment priorities. Completing them on time is 'Low Hanging Fruit' that can significantly boost your overall percentage.",
+      "You're standing on the edge of a breakthrough. Master just two key topics this week, and you'll see your predictive score rise.",
+      "Don't settle for average. You have the potential for 'Good' or 'Excellent' grades if you can improve your class engagement.",
+      "Focus on the basics. Many of your mistakes are foundational. A quick review of the first-year concepts might help current subjects.",
+      "You can do this! Break your study time into 25-minute blocks with 5-minute breaks to stay fresh and avoid getting overwhelmed.",
+      "Your attendance is the key variable. Aim for a 90% attendance rate for the next 30 days and watch your internal marks soar.",
+      "It's time to get organized. A clear study timetable and a dedicated workspace will make a huge difference in your productivity.",
+      "You're currently in a safe zone, but barely. A little extra effort now will prevent a lot of stress during the final exam week.",
+      "Focus on your assignments. They are 'fixed marks' that you can secure with just a bit of discipline and timely submission.",
+      "Reach out to your peers who are excelling. Sometimes a new perspective on a difficult topic is all you need to finally 'get it'.",
+      "You are improving, but slowly. Let's speed up the progress by tackling the most difficult topics first while your mind is fresh."
     ],
     "At Risk": [
-      "We're concerned about your current progress. Please schedule a meeting with your academic advisor as soon as possible to create a recovery plan for your studies.",
-      "Your attendance and marks are significantly below the safety threshold. Dedicating time to catch up on missed lectures is critical right now for your success.",
-      "Urgent action is needed. Focus on clearing your pending assignments and attending every single class from now on to avoid falling further behind.",
-      "You are at a critical junction. We recommend a complete focus on your core subjects for the next 3 weeks to ensure you satisfy the minimum passing criteria.",
-      "High priority: Your grades in internal exams indicate a need for immediate intervention. Reach out to your 'Subject Matter Experts' for personalized guidance.",
-      "Attendance is your primary obstacle. Improving your presence in class is the fastest way to start recovering your grades and gaining back your confidence.",
-      "A proactive approach is required. Start by mastering one small topic at a time using the platform's flashcards and quizzes to build up your knowledge base.",
-      "You need to significantly increase your study hours. Avoid distractions and use the 'Pomodoro' technique to stay productive during your intense revision sessions.",
-      "Your current path leads to academic probation. Let's turn this around by setting small, achievable goals each day and tracking your progress diligently.",
-      "It's not too late to improve! Start with the most recent lecture and work your way back. Consistency from today onwards will make a huge difference.",
-      "Immediate intervention required: You are currently performing at 'At Risk' levels. Focus on attending every tutorial session for extra guidance and support.",
-      "Your academic standing is in danger. We recommend a complete digital detox during study hours to ensure 100% focus on your core recovery curriculum.",
-      "Focus on the basics first. You cannot build a tall building on a weak foundation. Review the introductory concepts of every subject to find your footing.",
-      "Reach out to your faculty mentor today. They can provide a customized learning path to help you bridge the gaps and avoid failing your current term.",
-      "Consistency is currently your greatest weakness. Set an alarm for every class and make it your top priority to be present and engaged every single day."
+      "Critical Alert: Your current trajectory requires immediate intervention. Please book a session with your academic counselor today.",
+      "Urgent focus needed: Attendance and assignments are currently in a high-risk zone. We need to clear all backlogs by the end of this week.",
+      "Don't lose hope—recovery is possible! Start with the most recent lecture and work your way backwards one day at a time.",
+      "Immediate action: Your internal exam scores are far below the safety threshold. Dedicate 4 hours each evening to core subject recovery.",
+      "High priority risk: Attendance is currently the main barrier to success. Every missed class from now on significantly lowers your pass chance.",
+      "Reach out for help today. Your subject mentors are here to guide you through a 'Fast-Track' catch-up plan to save the semester.",
+      "Strategic focus: Drop all non-essential activities for the next two weeks. We need a 100% focus on clearing the primary 'Problem Subjects'.",
+      "You are currently at a crossroads. Committing to a strict study schedule for just 21 days can turn this 'At Risk' status around.",
+      "Foundational alert: Significant gaps in basics are impacting your ability to follow current lectures. Spend 1 hour daily on foundational review.",
+      "Your current grading shows you are struggling with the course load. Let's simplify: Master only the most important 50% of each subject first.",
+      "Avoid procrastination at all costs. Every hour spent studying today is worth three hours of cramming during the stressful final week.",
+      "Academic emergency: Your predictive CGPA is falling. Use the 'Learning Support' resources in the dashboard to find difficult topics to master.",
+      "You have the brainpower, but the effort is currently misaligned. Redirect your energy from side topics to your primary core curriculum.",
+      "Urgent: Participation in labs and assignments is mandatory for clearing this semester. Complete all pending lab reports by tomorrow.",
+      "It's not too late to turn this around. Consistency starts with today's class. Be there, be engaged, and start your recovery now.",
+      "Urgent: You need a structured recovery plan. Focus on the subjects with the highest credit-weighting first to maximize your GPA.",
+      "Academic emergency! Stop all non-essential activities and devote the next 10 days to catching up on foundational modules.",
+      "Don't lose hope. Even a small improvement today counts. Attend your next lecture and take the most detailed notes possible.",
+      "You are at a crossroad. Choosing to focus now will save your semester. Reach out to the 'Student Success' team for guidance.",
+      "Critical focus needed: Your practical marks are currently zero. Please submit your lab records to the faculty immediately.",
+      "This is a turnaround opportunity! Master the first two modules of every subject perfectly; it's the safest way to pass.",
+      "Your current path leads to a year back. Let's avoid that by setting a 'Hard Target' of 5 hours of study every single day.",
+      "Focus alert! Your performance is currently being dragged down by avoidable absences. Make every class count from today on.",
+      "You can still pass. Focus 100% on the internal assessments and assignments to build a safety net for the final theory exams."
     ]
   };
 
@@ -2041,10 +2087,19 @@ app.get("/api/analytics/student/:id", authenticateToken, async (req, res) => {
     ? JSON.parse(student.problemSubjects)
     : [];
 
+  const greetings = [
+    "AI Diagnostic Insight:",
+    "Academic Performance Forecast:",
+    "Strategic Learning Note:",
+    "Personalized Advisor Feedback:",
+    "EduAI Performance Analysis:",
+  ];
+  const greeting = greetings[Math.floor(Math.random() * greetings.length)];
+
   const categoryTips = insightsPool[prediction] || insightsPool["At Risk"];
   const randomTip =
     categoryTips[Math.floor(Math.random() * categoryTips.length)];
-  const recommendation = randomTip;
+  const recommendation = `${greeting} ${randomTip}`;
 
   // Diverse advice for reported problem subjects
   const problemSubjectAdvicePool = [
@@ -2184,6 +2239,22 @@ app.get("/api/analytics/student/:id", authenticateToken, async (req, res) => {
   // --- Start Python AI Prediction ---
   let aiData = null;
   const pythonPath = process.env.PYTHON_PATH || "python";
+
+  // Calculate backlogs (marks < 40)
+  const backlogs = marks.filter(m => m.marks < 40).length;
+
+  // Calculate assignment completion rate
+  let assignmentCompletionRate = 0;
+  try {
+    const assignmentsQuery = db.prepare("SELECT is_completed FROM assignments WHERE student_id = ?").all(studentId);
+    if (assignmentsQuery.length > 0) {
+      const completedAssignments = assignmentsQuery.filter(a => a.is_completed).length;
+      assignmentCompletionRate = Math.round((completedAssignments / assignmentsQuery.length) * 100);
+    }
+  } catch (e) {
+    console.error("Error calculating assignments:", e);
+  }
+
   const studentFullData = {
     name: studentInfo.name,
     class: studentInfo.class,
@@ -2191,7 +2262,10 @@ app.get("/api/analytics/student/:id", authenticateToken, async (req, res) => {
     marks: marks.map(m => ({ subject: m.subject, marks: m.marks })),
     attendanceRate,
     cgpaTrend: cgpas,
-    problemSubjects
+    problemSubjects,
+    backlogs,
+    assignmentCompletionRate,
+    studyHoursPerWeek: 15
   };
 
   try {
@@ -2201,8 +2275,8 @@ app.get("/api/analytics/student/:id", authenticateToken, async (req, res) => {
         let output = "";
         let errorOutput = "";
 
-        pythonProcess.stdout.on("data", (data) => { output += data; });
-        pythonProcess.stderr.on("data", (data) => { errorOutput += data; });
+        pythonProcess.stdout.on("data", (data) => { output += data.toString(); });
+        pythonProcess.stderr.on("data", (data) => { errorOutput += data.toString(); });
 
         pythonProcess.on("close", (code) => {
           if (code === 0) {
@@ -2244,7 +2318,8 @@ app.get("/api/analytics/student/:id", authenticateToken, async (req, res) => {
     problem_subjects_advice: finalProblemAdvice,
     lowestSubject,
     subject_tips,
-    aiSummary: aiData?.overallSummary || "AI Insights temporarily unavailable."
+    aiSummary: aiData?.message || aiData?.overallSummary || "AI Insights temporarily unavailable.",
+    aiData: aiData || null
   });
 });
 

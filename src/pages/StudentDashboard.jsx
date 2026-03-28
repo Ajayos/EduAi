@@ -402,6 +402,102 @@ export default function StudentDashboard({ setActiveTab }) {
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
       </div>
 
+      {/* AI Diagnostic Report Section (Premium) */}
+      {analytics?.aiData && (
+        <motion.div 
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-br from-indigo-900 via-blue-900 to-slate-900 p-10 rounded-[3rem] text-white shadow-2xl relative overflow-hidden border border-white/10"
+        >
+          <div className="relative z-10">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-10">
+              <div className="flex items-center gap-4">
+                <div className="p-4 bg-blue-500/20 rounded-3xl backdrop-blur-xl border border-blue-400/30">
+                  <BrainCircuit className="w-10 h-10 text-blue-400" />
+                </div>
+                <div>
+                  <h2 className="text-3xl font-black tracking-tight">AI Diagnostic Report</h2>
+                  <p className="text-blue-300 font-bold uppercase tracking-[0.2em] text-xs mt-1">
+                    Powered by EduAi Predictive Engine
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Diagnostic Confidence</p>
+                  <div className="flex items-center justify-end gap-2 text-2xl font-black text-emerald-400">
+                    <ShieldCheck size={24} />
+                    {analytics.aiData.confidence}%
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+              {/* Outcome & Forecast */}
+              <div className="lg:col-span-4 space-y-8">
+                <div className="bg-white/5 rounded-[2rem] p-8 border border-white/10 backdrop-blur-md">
+                   <p className="text-slate-400 text-xs font-black uppercase tracking-widest mb-4">Current Prediction</p>
+                   <h3 className={`text-4xl font-black mb-2 ${analytics.aiData.prediction === 'At Risk' ? 'text-pink-500' : 'text-emerald-400'}`}>
+                     {analytics.aiData.prediction}
+                   </h3>
+                   <p className="text-sm text-slate-300 italic">"{analytics.aiData.message}"</p>
+                </div>
+
+                <div className="bg-white/5 rounded-[2rem] p-8 border border-white/10 backdrop-blur-md">
+                   <p className="text-slate-400 text-xs font-black uppercase tracking-widest mb-4">Future Outcome Yield</p>
+                   <div className="flex items-baseline gap-2">
+                     <span className="text-5xl font-black text-blue-400">{analytics.aiData.futurePrediction?.expectedCGPA || 'N/A'}</span>
+                     <span className="text-slate-500 font-bold">EXPEC. CGPA</span>
+                   </div>
+                   <p className="text-xs text-slate-400 mt-2">Projection based on current growth velocity</p>
+                </div>
+              </div>
+
+              {/* Risk Flags & Insights */}
+              <div className="lg:col-span-8 space-y-8">
+                {analytics.aiData.riskFlags?.length > 0 && (
+                  <div className="bg-pink-500/10 rounded-[2rem] p-8 border border-pink-500/20 backdrop-blur-md">
+                    <h4 className="text-sm font-black text-pink-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <AlertTriangle size={18} /> Critical Risk Vectors
+                    </h4>
+                    <div className="flex flex-wrap gap-3">
+                      {analytics.aiData.riskFlags.map((flag, idx) => (
+                        <span key={idx} className="bg-pink-500/20 text-pink-300 px-5 py-2 rounded-xl text-xs font-black uppercase tracking-wider border border-pink-500/30">
+                          {flag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="bg-white/5 rounded-[2rem] p-8 border border-white/10 backdrop-blur-md">
+                  <h4 className="text-sm font-black text-blue-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                    <Sparkles size={18} /> Subject-Level Intelligence
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {analytics.aiData.insights?.slice(0, 4).map((insight, idx) => (
+                      <div key={idx} className="p-5 bg-white/5 rounded-2xl border border-white/5 group hover:bg-white/10 transition-all">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="font-bold text-sm text-slate-200 line-clamp-1">{insight.subject}</p>
+                          <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase ${insight.status === 'Strong' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-orange-500/20 text-orange-400'}`}>
+                            {insight.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-400 line-clamp-2 italic">"{insight.advice}"</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          {/* Animated Background Orbs */}
+          <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-blue-600/20 rounded-full -translate-x-1/2 -translate-y-1/2 blur-[120px] pointer-events-none"></div>
+          <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-indigo-600/20 rounded-full translate-x-1/2 translate-y-1/2 blur-[100px] pointer-events-none"></div>
+        </motion.div>
+      )}
+
       {latestNotification && (
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -917,52 +1013,92 @@ export default function StudentDashboard({ setActiveTab }) {
             )}
           </div>
 
-          {/* Subject Confidence Section */}
-          <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
-            <h4 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
-              <ShieldCheck className="text-blue-600" /> Subject Confidence Tracking
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Premium Subject Confidence Tracker */}
+          <div className="bg-white p-10 rounded-[3rem] border border-slate-200 shadow-xl shadow-slate-100">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-10">
+              <div className="flex items-center gap-4">
+                <div className="p-4 bg-blue-50 text-blue-600 rounded-[1.5rem] border border-blue-100">
+                  <ShieldCheck size={32} />
+                </div>
+                <div>
+                  <h4 className="text-2xl font-black text-slate-900 leading-tight">Subject Confidence Analysis</h4>
+                  <p className="text-slate-500 font-bold text-sm tracking-tight capitalize">
+                    Self-report your grasp on subjects for tailored academic support
+                  </p>
+                </div>
+              </div>
+              <div className="text-slate-400 font-black text-[10px] uppercase tracking-[0.2em] bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
+                Data Sync: Active
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {(analytics.marks || []).map((subject, idx) => {
                 const probSubjects = Array.isArray(profileData.problemSubjects) ? profileData.problemSubjects : [];
                 const confidenceObj = probSubjects.find(s => s.subject === subject.subject);
                 const rating = confidenceObj ? confidenceObj.confidence : 5; // Default to 5 if not in problem list
 
                 return (
-                  <div key={`${subject.subject_id || subject.subject}-${idx}`} className="p-6 bg-slate-50 rounded-3xl border border-slate-100 flex items-center justify-between">
-                    <div>
-                      <p className="font-bold text-slate-900">{subject.subject}</p>
-                      <p className="text-xs text-slate-500">How confident are you?</p>
+                  <motion.div 
+                    key={`${subject.subject}-${idx}`} 
+                    whileHover={{ y: -5 }}
+                    className="p-8 bg-slate-50 rounded-[2.5rem] border border-slate-100 flex flex-col gap-6 relative group hover:bg-white hover:shadow-2xl hover:shadow-blue-100 transition-all border-b-4 border-b-transparent hover:border-b-blue-400"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-black text-slate-900 text-lg leading-tight mb-1">{subject.subject}</p>
+                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest flex items-center gap-1">
+                          <Target size={12} className={rating <= 2 ? "text-pink-500" : "text-blue-400"} />
+                          {rating <= 2 ? "Critical Focus Area" : rating <= 4 ? "Growing Confidence" : "Full Mastery"}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex gap-1">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <button
-                          key={star}
-                          onClick={() => {
-                            const current = Array.isArray(profileData.problemSubjects) ? profileData.problemSubjects : [];
-                            let updated;
-                            if (star < 5) {
-                              const existingIdx = current.findIndex(s => s.subject === subject.subject);
-                              if (existingIdx >= 0) {
-                                updated = [...current];
-                                updated[existingIdx] = { subject: subject.subject, confidence: star };
+
+                    <div className="flex items-center justify-between bg-white/80 backdrop-blur-sm p-4 rounded-2xl border border-slate-100">
+                      <div className="flex gap-1.5">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            onClick={async () => {
+                              const current = Array.isArray(profileData.problemSubjects) ? profileData.problemSubjects : [];
+                              let updated;
+                              if (star < 5) {
+                                const existingIdx = current.findIndex(s => s.subject === subject.subject);
+                                if (existingIdx >= 0) {
+                                  updated = [...current];
+                                  updated[existingIdx] = { subject: subject.subject, confidence: star };
+                                } else {
+                                  updated = [...current, { subject: subject.subject, confidence: star }];
+                                }
                               } else {
-                                updated = [...current, { subject: subject.subject, confidence: star }];
+                                updated = current.filter(s => s.subject !== subject.subject);
                               }
-                            } else {
-                              updated = current.filter(s => s.subject !== subject.subject);
-                            }
-                            const newProfileData = { ...profileData, problemSubjects: updated };
-                            setProfileData(newProfileData);
-                            api.updateStudentProfile(newProfileData).then(fetchTargetedResources);
-                          }}
-                          className={`p-1 transition-all ${star <= rating ? "text-yellow-400" : "text-slate-300"}`}
-                        >
-                          <Star size={20} fill={star <= rating ? "currentColor" : "none"} />
-                        </button>
-                      ))}
+                              const updatedProfile = { ...profileData, problemSubjects: updated };
+                              setProfileData(updatedProfile);
+                              try {
+                                await api.updateStudentProfile(updatedProfile);
+                                if (typeof fetchData === 'function') fetchData();
+                              } catch (err) {
+                                console.error("Sync error:", err);
+                              }
+                            }}
+                            className={`transition-all hover:scale-125 focus:outline-none ${star <= rating ? "text-amber-400" : "text-slate-200"}`}
+                          >
+                            <Star 
+                              size={24} 
+                              fill={star <= rating ? "currentColor" : "none"} 
+                              strokeWidth={star <= rating ? 0 : 2}
+                              className={star <= rating ? "drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]" : ""}
+                            />
+                          </button>
+                        ))}
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Confidence</p>
+                        <p className="text-sm font-black text-slate-800">{rating}/5</p>
+                      </div>
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>
@@ -1400,7 +1536,7 @@ export default function StudentDashboard({ setActiveTab }) {
                         <p className="text-xl font-black text-blue-600">{selectedSubject.detailed.internals[1]}</p>
                       </div>
                       <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm text-center col-span-2">
-                        <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Assignment (20)</p>
+                        <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Assignment (50)</p>
                         <p className="text-xl font-black text-emerald-600">{selectedSubject.detailed.assignment}</p>
                       </div>
                     </div>

@@ -225,7 +225,7 @@ export default function StudentProfiles() {
                       </p>
                       <div className="mt-4 flex gap-3">
                         <span className="px-3 py-1 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-xs font-bold uppercase tracking-widest text-emerald-300">
-                          {profileData.calculatedPercentage >= 75 ? "Excellent Standing" : "Needs Review"}
+                          {profileData.performanceScore >= 75 ? "Excellent Standing" : "Needs Review"}
                         </span>
                         <span className="px-3 py-1 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-xs font-bold uppercase tracking-widest text-yellow-300 flex items-center gap-1">
                           <Star size={12} className="fill-yellow-300"/> Top 10%
@@ -393,18 +393,46 @@ export default function StudentProfiles() {
                           )}
                         </div>
                         
-                        {JSON.parse(selectedStudent?.problemSubjects)?.length > 0 && (
-                          <div className="pt-4 border-t border-slate-200">
-                            <p className="text-[10px] font-bold text-red-400 uppercase tracking-widest mb-3">Problem Subjects</p>
-                            <div className="flex flex-wrap gap-2">
-                              {JSON.parse(selectedStudent?.problemSubjects)?.map(s => (
-                                <span key={s} className="px-3 py-1 bg-red-50 text-red-600 rounded-lg text-[10px] font-bold border border-red-100 italic">
-                                  {s}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                        {(() => {
+                           try {
+                             const subjects = typeof selectedStudent?.problemSubjects === 'string' 
+                               ? JSON.parse(selectedStudent.problemSubjects || '[]') 
+                               : (selectedStudent?.problemSubjects || []);
+                             
+                             if (subjects.length === 0) return null;
+                             
+                             return (
+                               <div className="pt-6 border-t border-slate-200">
+                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Subject Confidence Breakdown</p>
+                                 <div className="grid grid-cols-1 gap-3">
+                                   {subjects.map((s, idx) => (
+                                     <div key={idx} className="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                                       <span className="text-xs font-bold text-slate-700 italic">
+                                         {typeof s === 'string' ? s : s.subject}
+                                       </span>
+                                       <div className="flex gap-0.5">
+                                         {[1, 2, 3, 4, 5].map((star) => {
+                                           const rating = typeof s === 'string' ? 2 : s.confidence; // Default to 2 if legacy string
+                                           return (
+                                             <Star 
+                                               key={star} 
+                                               size={12} 
+                                               fill={star <= rating ? "#fbbf24" : "none"} 
+                                               className={star <= rating ? "text-yellow-400" : "text-slate-200"} 
+                                             />
+                                           );
+                                         })}
+                                       </div>
+                                     </div>
+                                   ))}
+                                 </div>
+                               </div>
+                             );
+                           } catch (e) {
+                             console.error("Failed to parse problem subjects", e);
+                             return null;
+                           }
+                        })()}
                       </div>
                     </div>
 
@@ -414,7 +442,7 @@ export default function StudentProfiles() {
                           Aggregate Index
                         </p>
                         <div className="text-6xl font-black text-slate-800 tracking-tighter mb-2">
-                          {profileData.calculatedPercentage}<span className="text-2xl text-slate-400">%</span>
+                          {Math.round(profileData.performanceScore || 0)}<span className="text-2xl text-slate-400">%</span>
                         </div>
                       </div>
                     </div>
