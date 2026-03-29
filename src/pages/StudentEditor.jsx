@@ -144,11 +144,23 @@ export default function StudentEditor() {
 
   const handleGradeAssignment = async (e) => {
     e.preventDefault();
-    // Simulate grading the assignment. In a real scenario, there would be a specific endpoint like `api.gradeAssignment(studentId, assignmentId, score)`
-    // The current api has completeAssignment but not specifically grading by score. Here we will mock the success but alert the specific operation.
+    if (!assignmentData.assignment_id || assignmentData.score < 0) {
+      return alert("Please select an assignment and enter a valid score.");
+    }
+
     try {
+      await api.gradeAssignment(assignmentData.assignment_id, {
+        score: assignmentData.score,
+        feedback: assignmentData.feedback,
+      });
+      
       alert(`Assignment graded successfully for ${selectedStudent.name}!`);
+      
+      // Clear score but keep it responsive
       setAssignmentData(prev => ({ ...prev, score: 0, feedback: "" }));
+      
+      // Refresh students/assignments to show updated state if needed
+      fetchInitialData();
     } catch (err) {
       alert(err.message || "Failed to grade assignment");
     }

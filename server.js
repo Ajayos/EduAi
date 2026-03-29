@@ -276,7 +276,9 @@ const migrations = {
     { name: "level", type: "TEXT DEFAULT 'Beginner'" }
   ],
   assignments: [
-    { name: "file_url", type: "TEXT" }
+    { name: "file_url", type: "TEXT" },
+    { name: "score", type: "INTEGER" },
+    { name: "feedback", type: "TEXT" }
   ],
   achievements: [
     { name: "description", type: "TEXT" }

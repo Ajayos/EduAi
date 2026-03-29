@@ -117,12 +117,14 @@ export default function VerificationManager() {
                         <p className="text-xs font-bold text-slate-400 uppercase mb-2">
                           Current Value
                         </p>
-                        <div className="px-4 py-2 bg-slate-50 rounded-xl border border-slate-100 text-slate-600 font-bold">
-                          {request.field === "marks"
-                            ? oldValue?.marks
-                            : request?.field === "cgpa"
-                              ? oldValue?.cgpa
-                              : oldValue?.status}
+                        <div className="px-4 py-2 bg-slate-50 rounded-xl border border-slate-100 text-slate-600 font-bold whitespace-nowrap">
+                          {request.field === "cgpa" ? (
+                             `Sem ${newValue.semester}: ${oldValue?.cgpa || 0}`
+                          ) : request.field === "marks" ? (
+                             `Marks: ${oldValue?.marks || 0}`
+                          ) : (
+                             oldValue?.status
+                          )}
                         </div>
                       </div>
                       <ArrowRight className="text-slate-300" />
@@ -130,12 +132,14 @@ export default function VerificationManager() {
                         <p className="text-xs font-bold text-blue-400 uppercase mb-2">
                           Requested Value
                         </p>
-                        <div className="px-4 py-2 bg-blue-50 rounded-xl border border-blue-100 text-blue-600 font-bold">
-                          {request.field === "marks"
-                            ? newValue.marks
-                            : request.field === "cgpa"
-                              ? newValue.cgpa
-                              : newValue.status}
+                        <div className="px-4 py-2 bg-blue-50 rounded-xl border border-blue-100 text-blue-600 font-bold whitespace-nowrap">
+                          {request.field === "cgpa" ? (
+                             `Sem ${newValue.semester}: ${newValue.cgpa}`
+                          ) : request.field === "marks" ? (
+                             `Marks: ${newValue.marks}`
+                          ) : (
+                             newValue.status
+                          )}
                         </div>
                       </div>
                     </div>
