@@ -189,6 +189,7 @@ export const api = {
   updateFlashcard: (id, data) =>
     request(`/flashcards/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteFlashcard: (id) => request(`/flashcards/${id}`, { method: "DELETE" }),
+  viewFlashcard: (id) => request(`/flashcards/${id}/view`, { method: "POST" }),
 
   // Achievements
   getAchievements: () => request("/achievements"),

@@ -42,6 +42,11 @@ export default function StudentEditor() {
     assignment: 0,
   });
 
+  const [cgpaData, setCgpaData] = useState({
+    semester: "1",
+    cgpa: "",
+  });
+
   const [assignmentData, setAssignmentData] = useState({
     assignment_id: "",
     score: 0,
@@ -116,6 +121,24 @@ export default function StudentEditor() {
       alert("Detailed marks added successfully!");
     } catch (err) {
       alert(err.message || "Failed to add marks");
+    }
+  };
+
+  const handleUpdateCgpa = async (e) => {
+    e.preventDefault();
+    try {
+      if (!cgpaData.cgpa || cgpaData.cgpa < 0 || cgpaData.cgpa > 10) {
+        return alert("Please enter a valid CGPA between 0 and 10.");
+      }
+      await api.reportCGPA({
+        student_id: selectedStudent.id,
+        semester: parseInt(cgpaData.semester),
+        cgpa: parseFloat(cgpaData.cgpa),
+      });
+      alert(`CGPA updated to ${cgpaData.cgpa} for Semester ${cgpaData.semester}!`);
+      setCgpaData(prev => ({ ...prev, cgpa: "" }));
+    } catch (err) {
+      alert(err.message || "Failed to map CGPA details");
     }
   };
 
@@ -216,6 +239,7 @@ export default function StudentEditor() {
               {[
                 { id: "attendance", label: "Attendance", icon: CheckCircle },
                 { id: "marks", label: "Marks & Tests", icon: TrendingUp },
+                { id: "cgpa", label: "Report CGPA", icon: Award },
                 { id: "assignments", label: "Assignments", icon: BookOpen },
                 { id: "profile", label: "Student Details", icon: User },
               ].map((tab) => (
@@ -476,6 +500,46 @@ export default function StudentEditor() {
                        </form>
                      )}
                    </div>
+                  )}
+
+                  {activeTab === "cgpa" && (
+                    <div className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+                      <div className="absolute top-0 right-0 w-64 h-64 bg-pink-50 rounded-full blur-3xl group-hover:bg-pink-100 transition-colors"></div>
+                      <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-2 relative z-10">
+                        <Award className="text-pink-500" /> Direct CGPA Update
+                      </h3>
+                      <p className="text-slate-500 mb-8 relative z-10 max-w-lg">
+                        Directly map a CGPA average for the student's designated semester. This bypasses the verification request queue.
+                      </p>
+
+                      <form onSubmit={handleUpdateCgpa} className="space-y-6 relative z-10">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                              <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Semester</label>
+                              <select
+                                className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-pink-500 focus:bg-white hover:border-pink-200 transition-all font-bold text-slate-700"
+                                value={cgpaData.semester}
+                                onChange={(e) => setCgpaData({...cgpaData, semester: e.target.value})}
+                              >
+                                {[1,2,3,4,5,6,7,8].map(s => <option key={s} value={s}>Semester {s}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">CGPA Value (0 - 10)</label>
+                                <input
+                                    type="number" step="0.01" min="0" max="10" required
+                                    className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-pink-500 focus:bg-white text-xl font-black text-slate-900 hover:border-pink-200 transition-all"
+                                    value={cgpaData.cgpa}
+                                    placeholder="e.g. 8.5"
+                                    onChange={(e) => setCgpaData({...cgpaData, cgpa: e.target.value})}
+                                />
+                            </div>
+                        </div>
+                        <button type="submit" className="w-full py-4 bg-pink-600 text-white rounded-2xl font-black shadow-lg shadow-pink-200 mt-4 hover:bg-pink-700 hover:-translate-y-1 transition-all">
+                          Update Student CGPA
+                        </button>
+                      </form>
+                    </div>
                   )}
 
                   {activeTab === "profile" && (

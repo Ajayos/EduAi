@@ -14,8 +14,9 @@ import {
   Lightbulb,
   Trash2,
   FileText,
+  Target,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence  } from "framer-motion";
 import ConfirmationModal from "../components/ConfirmationModal";
 import {
   BarChart,
@@ -40,6 +41,8 @@ export default function TeacherDashboard({ setActiveTab }) {
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
   const [showAddMarksModal, setShowAddMarksModal] = useState(false);
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+  const [showAddCgpaModal, setShowAddCgpaModal] = useState(false);
+  const [newCgpa, setNewCgpa] = useState({ semester: 1, cgpa: "" });
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileData, setProfileData] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -284,6 +287,28 @@ export default function TeacherDashboard({ setActiveTab }) {
     } catch (err) {
       console.error(err);
       alert("Failed to load student profile");
+    }
+  };
+
+  const handleAddCgpa = async (e) => {
+    e.preventDefault();
+    if (newCgpa.cgpa < 0 || newCgpa.cgpa > 10) {
+      alert("CGPA must be between 0 and 10");
+      return;
+    }
+    try {
+      await api.reportCGPA({
+        student_id: selectedStudent.id,
+        semester: Number(newCgpa.semester),
+        cgpa: Number(newCgpa.cgpa)
+      });
+      alert("CGPA Updated Successfully");
+      setShowAddCgpaModal(false);
+      setNewCgpa({ semester: 1, cgpa: "" });
+      fetchStats();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to add CGPA");
     }
   };
 
@@ -779,6 +804,15 @@ export default function TeacherDashboard({ setActiveTab }) {
                       <button
                         onClick={() => {
                           setSelectedStudent(student);
+                          setShowAddCgpaModal(true);
+                        }}
+                        className="text-xs font-bold text-purple-600 hover:text-purple-700 bg-purple-50 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1"
+                      >
+                        <Target size={12}/> CGPA
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedStudent(student);
                           setShowAttendanceModal(true);
                         }}
                         className="text-xs font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg transition-all"
@@ -1045,6 +1079,78 @@ export default function TeacherDashboard({ setActiveTab }) {
                 className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 mt-4"
               >
                 Save Marks
+              </button>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Add CGPA Modal */}
+      {showAddCgpaModal && selectedStudent && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-slate-900">
+                Update CGPA
+              </h2>
+              <button
+                onClick={() => setShowAddCgpaModal(false)}
+                className="p-2 hover:bg-slate-100 rounded-full"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddCgpa} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Student
+                </label>
+                <input
+                  type="text"
+                  disabled
+                  className="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-xl outline-none text-slate-500 font-bold"
+                  value={selectedStudent.name}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Semester
+                </label>
+                <select
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 font-bold"
+                  value={newCgpa.semester}
+                  onChange={(e) => setNewCgpa({ ...newCgpa, semester: e.target.value })}
+                >
+                  {semesters.map(s => <option key={s} value={s}>Semester {s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  CGPA (0 - 10)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="10"
+                  required
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 font-bold"
+                  value={newCgpa.cgpa}
+                  onChange={(e) => setNewCgpa({ ...newCgpa, cgpa: e.target.value })}
+                  placeholder="e.g. 8.5"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-4 bg-purple-600 text-white rounded-2xl font-bold hover:bg-purple-700 transition-all shadow-lg shadow-purple-100 mt-4"
+              >
+                Save CGPA
               </button>
             </form>
           </motion.div>

@@ -180,16 +180,26 @@ export default function FlashcardPage() {
   const nextCard = () => {
     setIsFlipped(false);
     setTimeout(() => {
-      setCurrentIndex((prev) => (prev + 1) % flashcards.length);
+      setCurrentIndex((prev) => {
+        const nextIdx = (prev + 1) % flashcards.length;
+        if (flashcards[nextIdx]) {
+          api.viewFlashcard(flashcards[nextIdx].id).catch(console.error);
+        }
+        return nextIdx;
+      });
     }, 150);
   };
 
   const prevCard = () => {
     setIsFlipped(false);
     setTimeout(() => {
-      setCurrentIndex(
-        (prev) => (prev - 1 + flashcards.length) % flashcards.length,
-      );
+      setCurrentIndex((prev) => {
+        const nextIdx = (prev - 1 + flashcards.length) % flashcards.length;
+        if (flashcards[nextIdx]) {
+          api.viewFlashcard(flashcards[nextIdx].id).catch(console.error);
+        }
+        return nextIdx;
+      });
     }, 150);
   };
 
@@ -237,8 +247,25 @@ export default function FlashcardPage() {
 
   if (loading)
     return (
-      <div className="flex items-center justify-center h-64">
-        <BrainCircuit className="animate-spin text-blue-600" />
+      <div className="space-y-8 animate-pulse">
+        <div className="flex justify-between items-center mb-8">
+          <div className="h-10 w-64 bg-slate-200 rounded-xl"></div>
+          <div className="hidden md:flex gap-4">
+             <div className="h-12 w-32 bg-slate-200 rounded-2xl"></div>
+             <div className="h-12 w-36 bg-slate-200 rounded-2xl"></div>
+          </div>
+        </div>
+        <div className="max-w-2xl mx-auto space-y-12 mt-12">
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-8 w-48 bg-slate-200 rounded-lg"></div>
+            <div className="h-4 w-32 bg-slate-200 rounded-md"></div>
+          </div>
+          <div className="w-full h-80 bg-slate-200 rounded-[3rem]"></div>
+          <div className="flex justify-center gap-6">
+            <div className="h-16 w-16 bg-slate-200 rounded-2xl"></div>
+            <div className="h-16 w-16 bg-slate-200 rounded-2xl"></div>
+          </div>
+        </div>
       </div>
     );
 
@@ -350,6 +377,7 @@ export default function FlashcardPage() {
                         );
                         setCurrentIndex(idx);
                         setIsFlipped(false);
+                        api.viewFlashcard(card.id).catch(console.error);
                       }}
                       className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
                     >

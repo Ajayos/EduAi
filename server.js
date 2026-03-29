@@ -134,6 +134,8 @@ db.exec(`
     subject_id INTEGER,
     title TEXT,
     marks INTEGER,
+    score INTEGER,
+    feedback TEXT,
     priority INTEGER DEFAULT 0,
     due_date TEXT,
     is_completed BOOLEAN DEFAULT 0,
@@ -1406,6 +1408,34 @@ app.post(
     res.json({ success: true });
   },
 );
+
+app.post("/api/teacher/assignments/:id/grade", authenticateToken, (req, res) => {
+  if (req.user.role !== "teacher") return res.sendStatus(403);
+  const { score, feedback } = req.body;
+  const assignmentId = req.params.id;
+
+  try {
+    const result = db.prepare(
+      "UPDATE assignments SET score = ?, feedback = ?, is_completed = 1 WHERE id = ? AND teacher_id = ?"
+    ).run(score, feedback, assignmentId, req.user.id);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ message: "Assignment not found or unauthorized" });
+    }
+
+    // Notify student
+    const assignment = db.prepare("SELECT student_id, title FROM assignments WHERE id = ?").get(assignmentId);
+    if (assignment) {
+      db.prepare(
+        "INSERT INTO notifications (user_id, role, message) VALUES (?, 'student', ?)"
+      ).run(assignment.student_id, `Your assignment '${assignment.title}' has been graded: ${score} marks.`);
+    }
+
+    res.json({ success: true });
+  } catch (e) {
+    res.status(400).json({ message: e.message });
+  }
+});
 
 // Timetable
 app.get("/api/timetable", authenticateToken, (req, res) => {

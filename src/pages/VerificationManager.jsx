@@ -119,10 +119,10 @@ export default function VerificationManager() {
                         </p>
                         <div className="px-4 py-2 bg-slate-50 rounded-xl border border-slate-100 text-slate-600 font-bold">
                           {request.field === "marks"
-                            ? oldValue.marks
-                            : request.field === "cgpa"
-                              ? oldValue.cgpa
-                              : oldValue.status}
+                            ? oldValue?.marks
+                            : request?.field === "cgpa"
+                              ? oldValue?.cgpa
+                              : oldValue?.status}
                         </div>
                       </div>
                       <ArrowRight className="text-slate-300" />

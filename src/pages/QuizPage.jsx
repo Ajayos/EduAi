@@ -315,8 +315,16 @@ export default function QuizPage() {
 
   if (loading)
     return (
-      <div className="flex items-center justify-center h-64">
-        <BrainCircuit className="animate-spin text-blue-600" />
+      <div className="space-y-8 animate-pulse">
+        <div className="flex justify-between items-center mb-8">
+          <div className="h-10 w-64 bg-slate-200 rounded-xl"></div>
+          <div className="h-12 w-40 bg-slate-200 rounded-2xl"></div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="h-64 bg-slate-200 rounded-[2.5rem]"></div>
+          ))}
+        </div>
       </div>
     );
 

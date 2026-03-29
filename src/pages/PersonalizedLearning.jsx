@@ -74,8 +74,20 @@ export default function PersonalizedLearning() {
 
   if (loading)
     return (
-      <div className="flex items-center justify-center h-64">
-        <Sparkles className="animate-spin text-blue-600" />
+      <div className="space-y-8 animate-pulse">
+        <div className="h-64 bg-slate-200 rounded-[2.5rem]"></div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+           <div className="lg:col-span-2 space-y-4">
+              <div className="h-10 w-48 bg-slate-200 rounded-xl mb-6"></div>
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-28 bg-slate-200 rounded-3xl"></div>
+              ))}
+           </div>
+           <div className="space-y-8">
+              <div className="h-64 bg-slate-200 rounded-[2rem]"></div>
+              <div className="h-64 bg-slate-200 rounded-[2rem]"></div>
+           </div>
+        </div>
       </div>
     );
 
@@ -114,7 +126,9 @@ export default function PersonalizedLearning() {
             <div className="w-32 h-32 rounded-full border-8 border-white/20 flex items-center justify-center relative">
               <div className="absolute inset-0 rounded-full border-8 border-emerald-400 border-t-transparent animate-spin-slow"></div>
               <span className="text-3xl font-black">
-                {analytics?.prediction === "Excellent" ? "A+" : "B"}
+                {analytics?.prediction === "Excellent" ? "A+" : 
+                 analytics?.prediction === "Good" ? "A" : 
+                 analytics?.prediction === "At Risk" ? "C" : "B"}
               </span>
             </div>
             <p className="font-bold text-sm uppercase tracking-widest opacity-80">
