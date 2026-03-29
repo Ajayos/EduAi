@@ -182,8 +182,9 @@ def predict(student_data):
         # =========================
         # FUTURE PREDICTION
         # =========================
-        cgpa_growth = max(-2, min(2, cgpa_growth))  # limit growth range
-        predicted_cgpa = latest_cgpa + (cgpa_growth * 0.3)  # reduce impact
+        predicted_cgpa = latest_cgpa + (cgpa_growth * 0.5)
+        
+        # Clamp between 0 and 10
         predicted_cgpa = max(0.0, min(10.0, predicted_cgpa))
 
         # =========================
