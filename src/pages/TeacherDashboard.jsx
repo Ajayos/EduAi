@@ -76,6 +76,9 @@ export default function TeacherDashboard({ setActiveTab }) {
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [confidenceData, setConfidenceData] = useState([]);
   const [showConfidence, setShowConfidence] = useState(false);
+  const [verifications, setVerifications] = useState([]);
+  const [showVerificationsModal, setShowVerificationsModal] = useState(false);
+  const [editCgpaValues, setEditCgpaValues] = useState({});
 
   const classes = [
     "SOE",
@@ -113,6 +116,7 @@ export default function TeacherDashboard({ setActiveTab }) {
       api.getAssignmentAnalytics(),
       api.getQuizAnalytics(),
       api.getTeacherStudentConfidence(),
+      api.getVerifications(),
     ]).then(
       ([
         students,
@@ -122,12 +126,14 @@ export default function TeacherDashboard({ setActiveTab }) {
         assignAnalytics,
         quizAnalyticsRes,
         confData,
+        verifsRes,
       ]) => {
         setSubjects(subjectsRes);
         setFaculty(facultyRes);
         setAssignmentAnalytics(assignAnalytics);
         setQuizAnalytics(quizAnalyticsRes);
         setConfidenceData(confData);
+        setVerifications(verifsRes || []);
         if (subjectsRes.length > 0)
           setNewMark((prev) => ({ ...prev, subject_id: subjectsRes[0].id }));
         if (facultyRes.length > 0)
@@ -281,6 +287,27 @@ export default function TeacherDashboard({ setActiveTab }) {
     }
   };
 
+  const handleApproveVerification = async (id, originalCgpa) => {
+    try {
+      const editedCgpa = editCgpaValues[id] !== undefined ? editCgpaValues[id] : originalCgpa;
+      await api.approveVerification(id, { edited_cgpa: Number(editedCgpa) });
+      alert("Verification Approved.");
+      fetchStats();
+    } catch (err) {
+      alert("Failed to approve verification");
+    }
+  };
+
+  const handleRejectVerification = async (id) => {
+    try {
+      await api.rejectVerification(id);
+      alert("Verification Rejected.");
+      fetchStats();
+    } catch (err) {
+      alert("Failed to reject verification");
+    }
+  };
+
   if (loading)
     return (
       <div className="flex items-center justify-center h-64">
@@ -301,13 +328,29 @@ export default function TeacherDashboard({ setActiveTab }) {
     <div className="space-y-8 pb-20">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-900">Teacher Dashboard</h1>
-        <button
-          onClick={() => setShowAddStudentModal(true)}
-          className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
-        >
-          <Users size={20} />
-          Add Student
-        </button>
+        
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setShowVerificationsModal(true)}
+            className="relative bg-white border border-slate-200 text-slate-700 px-6 py-3 rounded-2xl font-bold flex items-center gap-2 hover:bg-slate-50 transition-all shadow-sm"
+          >
+            <CheckCircle size={20} className="text-blue-500" />
+            Verifications
+            {verifications.length > 0 && (
+              <span className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-black animate-pulse">
+                {verifications.length}
+              </span>
+            )}
+          </button>
+          
+          <button
+            onClick={() => setShowAddStudentModal(true)}
+            className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
+          >
+            <Users size={20} />
+            Add Student
+          </button>
+        </div>
       </div>
 
       {latestNotification && (
@@ -332,7 +375,7 @@ export default function TeacherDashboard({ setActiveTab }) {
         </motion.div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
         <StatCard
           title="Total Students"
           value={stats.totalStudents}
@@ -350,12 +393,6 @@ export default function TeacherDashboard({ setActiveTab }) {
           value={stats.atRiskStudents}
           icon={AlertTriangle}
           color="pink"
-        />
-        <StatCard
-          icon={CheckCircle}
-          title="Avg. Attendance"
-          value={`${stats.avgAttendance}%`}
-          color="emerald"
         />
       </div>
 
@@ -1313,6 +1350,105 @@ export default function TeacherDashboard({ setActiveTab }) {
           </motion.div>
         </div>
       )}
+
+      {/* Verifications Modal */}
+      <AnimatePresence>
+        {showVerificationsModal && (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4 lg:p-8">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-[3rem] w-full max-w-4xl shadow-2xl relative overflow-hidden max-h-[90vh] flex flex-col"
+            >
+              <div className="p-8 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/50">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center">
+                    <CheckCircle size={24} />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-black text-slate-900">Pending Verifications</h2>
+                    <p className="text-slate-500 text-sm mt-1">Review and approve CGPA updates from your students.</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowVerificationsModal(false)}
+                  className="p-3 bg-white text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-all border border-slate-200"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-8 overflow-y-auto flex-1 bg-slate-50/30">
+                {verifications.length === 0 ? (
+                  <div className="text-center py-16">
+                    <div className="w-20 h-20 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <CheckCircle size={32} />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-900 mt-4">All caught up!</h3>
+                    <p className="text-slate-500 mt-2">There are no pending verification requests at the moment.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4">
+                    {verifications.map((req) => {
+                      const data = JSON.parse(req.new_value || "{}");
+                      const currentEditVal = editCgpaValues[req.id] !== undefined ? editCgpaValues[req.id] : data.cgpa;
+                      
+                      return (
+                        <div key={req.id} className="bg-white border text-left border-slate-200 p-6 rounded-3xl flex flex-col lg:flex-row items-center justify-between gap-6 shadow-sm hover:shadow-md transition-shadow">
+                          <div className="flex items-center gap-4 lg:w-1/3">
+                            <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm">
+                              {req.student_name?.[0]}
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-900 text-lg">{req.student_name}</p>
+                              <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">{req.student_class} • Sem {data.semester || '?'}</p>
+                            </div>
+                          </div>
+                          
+                          <div className="flex flex-col items-center lg:w-1/3 w-full border-x border-slate-100 px-6">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Requested CGPA</p>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              max="10"
+                              className="w-28 text-center text-3xl font-black text-indigo-600 bg-indigo-50 border-2 border-indigo-100 rounded-xl px-2 py-1 outline-none focus:border-indigo-400 focus:bg-white transition-all shadow-inner"
+                              value={currentEditVal}
+                              onChange={(e) => setEditCgpaValues({ ...editCgpaValues, [req.id]: e.target.value })}
+                            />
+                            {currentEditVal !== data.cgpa && (
+                              <p className="text-xs text-orange-500 mt-2 font-bold flex items-center gap-1">
+                                <AlertTriangle size={12} />
+                                Edited by you (Originally {data.cgpa})
+                              </p>
+                            )}
+                          </div>
+                          
+                          <div className="flex items-center gap-3 lg:w-1/3 justify-end w-full">
+                            <button
+                              onClick={() => handleRejectVerification(req.id)}
+                              className="px-5 py-2.5 rounded-xl border-2 border-slate-200 text-slate-500 font-bold hover:bg-slate-50 hover:text-red-500 transition-colors"
+                            >
+                              Reject
+                            </button>
+                            <button
+                              onClick={() => handleApproveVerification(req.id, data.cgpa)}
+                              className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all flex items-center gap-2"
+                            >
+                              <CheckCircle size={18} /> Approve
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

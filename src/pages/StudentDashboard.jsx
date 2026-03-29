@@ -73,6 +73,8 @@ export default function StudentDashboard({ setActiveTab }) {
     quizzes: [],
     flashcards: [],
   });
+  const [showCgpaModal, setShowCgpaModal] = useState(false);
+  const [cgpaFormData, setCgpaFormData] = useState({ semester: 1, cgpa: "" });
 
   useEffect(() => {
     fetchData();
@@ -204,6 +206,27 @@ export default function StudentDashboard({ setActiveTab }) {
       alert("Request submitted for approval!");
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleSubmitCgpa = async (e) => {
+    e.preventDefault();
+    if (cgpaFormData.cgpa < 0 || cgpaFormData.cgpa > 10) {
+      alert("CGPA must be between 0 and 10");
+      return;
+    }
+    try {
+      await api.reportCGPA({
+        student_id: user.id,
+        semester: Number(cgpaFormData.semester),
+        cgpa: Number(cgpaFormData.cgpa)
+      });
+      alert("CGPA Verification Request Submitted. Awaiting teacher approval.");
+      setShowCgpaModal(false);
+      setCgpaFormData({ semester: 1, cgpa: "" });
+    } catch (err) {
+      console.error(err);
+      alert("Failed to submit CGPA");
     }
   };
 
@@ -447,7 +470,7 @@ export default function StudentDashboard({ setActiveTab }) {
                 <div className="bg-white/5 rounded-[2rem] p-8 border border-white/10 backdrop-blur-md">
                    <p className="text-slate-400 text-xs font-black uppercase tracking-widest mb-4">Future Outcome Yield</p>
                    <div className="flex items-baseline gap-2">
-                     <span className="text-5xl font-black text-blue-400">{analytics.aiData.futurePrediction?.expectedCGPA || 'N/A'}</span>
+                     <span className="text-5xl font-black text-blue-400">{analytics.aiData.futurePrediction?.expectedCGPA}</span>
                      <span className="text-slate-500 font-bold">EXPEC. CGPA</span>
                    </div>
                    <p className="text-xs text-slate-400 mt-2">Projection based on current growth velocity</p>
@@ -1278,8 +1301,17 @@ export default function StudentDashboard({ setActiveTab }) {
                   <h3 className="text-xl font-bold text-slate-900">Academic Trend</h3>
                   <p className="text-sm text-slate-500">CGPA progression across semesters</p>
                 </div>
-                <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
-                  <TrendingUp size={24} />
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => setShowCgpaModal(true)}
+                    className="flexItems-center justify-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition-colors"
+                  >
+                    <Plus size={16} />
+                    Report CGPA
+                  </button>
+                  <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+                    <TrendingUp size={24} />
+                  </div>
                 </div>
               </div>
               <div className="h-64 w-full">
@@ -1982,6 +2014,68 @@ export default function StudentDashboard({ setActiveTab }) {
           </div>
         )}
       </AnimatePresence>
+
+      {/* CGPA Report Modal */}
+      <AnimatePresence>
+        {showCgpaModal && (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl relative"
+            >
+              <button
+                onClick={() => setShowCgpaModal(false)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-2 bg-slate-100 rounded-full transition-colors"
+              >
+                <X size={20} />
+              </button>
+              <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-2">
+                <Target className="text-blue-500" />
+                Report CGPA
+              </h3>
+              <form onSubmit={handleSubmitCgpa} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
+                    Semester
+                  </label>
+                  <select
+                    value={cgpaFormData.semester}
+                    onChange={(e) => setCgpaFormData({ ...cgpaFormData, semester: e.target.value })}
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 text-slate-700 font-bold focus:outline-none focus:border-blue-500"
+                  >
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map(s => <option key={s} value={s}>Semester {s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
+                    CGPA Details (0-10)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="10"
+                    placeholder="e.g. 8.5"
+                    required
+                    value={cgpaFormData.cgpa}
+                    onChange={(e) => setCgpaFormData({ ...cgpaFormData, cgpa: e.target.value })}
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 text-slate-700 font-bold focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full bg-blue-600 text-white rounded-2xl p-4 font-bold text-lg hover:bg-blue-700 mt-6"
+                >
+                  Submit for Verification
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

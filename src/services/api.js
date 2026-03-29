@@ -240,4 +240,10 @@ export const api = {
   updateStudentProfile: (data) =>
     request(`/student/profile`, { method: "PUT", body: JSON.stringify(data) }),
   getTeacherStudentConfidence: () => request("/teacher/student-confidence"),
+
+  // CGPA & Verifications
+  reportCGPA: (data) => request("/cgpa", { method: "POST", body: JSON.stringify(data) }),
+  getVerifications: () => request("/teacher/verifications"),
+  approveVerification: (id, data) => request(`/teacher/verifications/${id}/approve`, { method: "POST", body: JSON.stringify(data || {}) }),
+  rejectVerification: (id) => request(`/teacher/verifications/${id}/reject`, { method: "POST" }),
 };

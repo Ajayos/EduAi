@@ -238,10 +238,52 @@ db.exec(`
     is_read BOOLEAN DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
-\`);
+`);
 
-// ── Database Migration System (Robust Schema Evolution) ────────────────────────
-// This ensures that existing databases built with older versions get updated.
+const migrations = {
+  teachers: [
+    { name: "department", type: "TEXT" },
+    { name: "isClassTeacher", type: "BOOLEAN DEFAULT 0" },
+    { name: "assignedClass", type: "TEXT" },
+    { name: "assignedSemester", type: "INTEGER" }
+  ],
+  students: [
+    { name: "tenthMarks", type: "REAL" },
+    { name: "twelfthMarks", type: "REAL" },
+    { name: "fatherName", type: "TEXT" },
+    { name: "motherName", type: "TEXT" },
+    { name: "fatherNumber", type: "TEXT" },
+    { name: "motherNumber", type: "TEXT" },
+    { name: "problemSubjects", type: "TEXT" },
+    { name: "problemTopics", type: "TEXT" }
+  ],
+  attendance: [
+    { name: "time", type: "TEXT" }
+  ],
+  marks: [
+    { name: "detailed_data", type: "TEXT" }
+  ],
+  flashcards: [
+    { name: "subject_id", type: "INTEGER" },
+    { name: "student_id", type: "INTEGER" },
+    { name: "level", type: "TEXT DEFAULT 'Beginner'" }
+  ],
+  quizzes: [
+    { name: "subject_id", type: "INTEGER" },
+    { name: "student_id", type: "INTEGER" },
+    { name: "level", type: "TEXT DEFAULT 'Beginner'" }
+  ],
+  assignments: [
+    { name: "file_url", type: "TEXT" }
+  ],
+  achievements: [
+    { name: "description", type: "TEXT" }
+  ],
+  subjects: [
+    { name: "year", type: "INTEGER DEFAULT 1" }
+  ]
+};
+
 // ── Database Migration System (Robust Schema Evolution) ────────────────────────
 Object.entries(migrations).forEach(([table, columns]) => {
   try {
@@ -1875,6 +1917,111 @@ app.post("/api/students/:id/stars", authenticateToken, (req, res) => {
   }
 });
 
+// CGPA Management & Verification
+app.post("/api/cgpa", authenticateToken, (req, res) => {
+  const { student_id, semester, cgpa } = req.body;
+  try {
+    if (req.user.role === "student") {
+      // Student creates a verification request
+      const newValue = JSON.stringify({ semester, cgpa });
+      const existing = db.prepare("SELECT cgpa FROM cgpa WHERE student_id = ? AND semester = ?").get(student_id, semester);
+      const oldValue = existing ? JSON.stringify({ semester, cgpa: existing.cgpa }) : null;
+
+      db.prepare(`
+        INSERT INTO verification_requests (student_id, field, old_value, new_value, status) 
+        VALUES (?, 'cgpa', ?, ?, 'pending')
+      `).run(student_id, oldValue, newValue);
+      
+      return res.json({ success: true, message: "Verification request submitted to teacher." });
+    }
+
+    // Admins and Teachers update directly
+    db.prepare(`
+      INSERT INTO cgpa (student_id, semester, cgpa) 
+      VALUES (?, ?, ?)
+      ON CONFLICT(student_id, semester) DO UPDATE SET cgpa = excluded.cgpa
+    `).run(student_id, semester, cgpa);
+    
+    db.prepare(
+      "INSERT INTO notifications (user_id, role, message) VALUES (?, 'student', ?)"
+    ).run(student_id, `Your CGPA for Semester ${semester} has been updated to ${cgpa}.`);
+    
+    res.json({ success: true });
+  } catch (e) {
+    res.status(400).json({ message: e.message });
+  }
+});
+
+// Teacher Verification Endpoints
+app.get("/api/teacher/verifications", authenticateToken, (req, res) => {
+  if (req.user.role !== "teacher") return res.sendStatus(403);
+  
+  // Teachers get requests for students in their assigned class
+  const teacher = db.prepare("SELECT assignedClass, assignedSemester FROM teachers WHERE id = ?").get(req.user.id);
+  let requests = [];
+  
+  if (teacher) {
+    requests = db.prepare(`
+      SELECT vr.*, s.name as student_name, s.class as student_class
+      FROM verification_requests vr
+      JOIN students s ON vr.student_id = s.id
+      WHERE vr.status = 'pending' AND (s.class = ? OR ? IS NULL)
+      ORDER BY vr.id DESC
+    `).all(teacher.assignedClass, teacher.assignedClass);
+  }
+  
+  res.json(requests);
+});
+
+app.post("/api/teacher/verifications/:id/approve", authenticateToken, (req, res) => {
+  if (req.user.role !== "teacher") return res.sendStatus(403);
+  const { id } = req.params;
+  const { edited_cgpa } = req.body; // Teacher can optionally edit before approving
+  
+  try {
+    const request = db.prepare("SELECT * FROM verification_requests WHERE id = ?").get(id);
+    if (!request || request.status !== 'pending') return res.status(400).json({ message: "Invalid request" });
+
+    const newValue = JSON.parse(request.new_value);
+    const finalCgpa = edited_cgpa !== undefined ? edited_cgpa : newValue.cgpa;
+
+    // Apply the CGPA update
+    db.prepare(`
+      INSERT INTO cgpa (student_id, semester, cgpa) 
+      VALUES (?, ?, ?)
+      ON CONFLICT(student_id, semester) DO UPDATE SET cgpa = excluded.cgpa
+    `).run(request.student_id, newValue.semester, finalCgpa);
+
+    // Update request status
+    db.prepare("UPDATE verification_requests SET status = 'approved' WHERE id = ?").run(id);
+
+    // Notify student
+    db.prepare(
+      "INSERT INTO notifications (user_id, role, message) VALUES (?, 'student', ?)"
+    ).run(request.student_id, `Your CGPA request for Semester ${newValue.semester} was approved as ${finalCgpa}.`);
+
+    res.json({ success: true });
+  } catch (e) {
+    res.status(400).json({ message: e.message });
+  }
+});
+
+app.post("/api/teacher/verifications/:id/reject", authenticateToken, (req, res) => {
+  if (req.user.role !== "teacher") return res.sendStatus(403);
+  try {
+    const request = db.prepare("SELECT * FROM verification_requests WHERE id = ?").get(req.params.id);
+    if (request) {
+      db.prepare("UPDATE verification_requests SET status = 'rejected' WHERE id = ?").run(req.params.id);
+      db.prepare(
+        "INSERT INTO notifications (user_id, role, message) VALUES (?, 'student', ?)"
+      ).run(request.student_id, `Your CGPA verification request was rejected. Please contact your teacher.`);
+    }
+    res.json({ success: true });
+  } catch (e) {
+    res.status(400).json({ message: e.message });
+  }
+});
+
 // Achievements
 app.get("/api/achievements", authenticateToken, (req, res) => {
   const achievements = db
@@ -1969,9 +2116,12 @@ app.get("/api/analytics/student/:id", authenticateToken, async (req, res) => {
     latestCgpa * 10 * 0.4 + attendanceRate * 0.2 + avgMarks * 0.3 + 70 * 0.1;
 
   let prediction = "At Risk";
-  if (performanceScore >= 85) prediction = "Excellent";
-  else if (performanceScore >= 70) prediction = "Good";
-  else if (performanceScore >= 50) prediction = "Needs Improvement";
+  if (performanceScore >= 80) prediction = "Excellent";
+  else if (performanceScore >= 65) prediction = "Good";
+  else if (performanceScore >= 45 || (latestCgpa === 0 && avgMarks > 40)) prediction = "Needs Improvement";
+  // The fallback to JS logic shouldn't overly penalize new students
+  if (latestCgpa === 0 && avgMarks >= 60) prediction = "Good";
+  if (latestCgpa === 0 && avgMarks >= 80) prediction = "Excellent";
 
   // Massive AI Insights Pool (Expansive and Natural-Sounding Advice)
   const insightsPool = {
@@ -2327,9 +2477,7 @@ app.get("/api/analytics/student/:id", authenticateToken, async (req, res) => {
 app.get("/api/teacher/analytics/assignments", authenticateToken, (req, res) => {
   if (req.user.role !== "teacher") return res.sendStatus(403);
   const analytics = db
-    .prepare(
-      `
-    SELECT a.title, a.is_completed, a.due_date, s.name as student_name, sub.name as subject_name
+    .prepare(`SELECT a.title, a.is_completed, a.due_date, s.name as student_name, sub.name as subject_name
     FROM assignments a
     JOIN students s ON a.student_id = s.id
     JOIN subjects sub ON a.subject_id = sub.id

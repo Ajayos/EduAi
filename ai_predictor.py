@@ -125,8 +125,15 @@ def predict(student_data):
             if marks_list else 0
         )
 
+        latest_cgpa = cgpa_trend[-1]["cgpa"] if cgpa_trend else 0
+
+        cgpa_growth = (
+            cgpa_trend[-1]["cgpa"] - cgpa_trend[0]["cgpa"]
+            if len(cgpa_trend) > 1 else 0
+        )
+
         # HEURISTIC: Handle "Fresh Start" students (e.g., Semester 1)
-        # If no previous CGPA or growth, estimate from current marks.
+        # If no previous CGPA, estimate from current marks.
         if latest_cgpa == 0:
             latest_cgpa = avg_marks / 10
             # CGPA is always capped at 10.0

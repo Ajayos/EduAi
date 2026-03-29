@@ -637,13 +637,6 @@ export default function AdminDashboard({ initialTab, autoOpenAddModal }) {
                         <Edit size={20} />
                       </button>
                       <button
-                        onClick={() => handleOpenSubjectModal(teacher)}
-                        className="p-2 text-emerald-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
-                        title="Assign Subjects"
-                      >
-                        <BookOpen size={20} />
-                      </button>
-                      <button
                         onClick={() => confirmDelete(teacher)}
                         className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
                       >
