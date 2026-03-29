@@ -257,7 +257,8 @@ const migrations = {
     { name: "fatherNumber", type: "TEXT" },
     { name: "motherNumber", type: "TEXT" },
     { name: "problemSubjects", type: "TEXT" },
-    { name: "problemTopics", type: "TEXT" }
+    { name: "problemTopics", type: "TEXT" },
+    { name: "study_planner", type: "TEXT" }
   ],
   attendance: [
     { name: "time", type: "TEXT" }
@@ -1396,6 +1397,16 @@ app.put("/api/student/tasks/:id/priority", authenticateToken, (req, res) => {
   db.prepare(
     "UPDATE tasks SET priority = ?, due_date = ? WHERE id = ? AND student_id = ?",
   ).run(priority, due_date, req.params.id, req.user.id);
+  res.json({ success: true });
+});
+
+app.put("/api/student/study-planner", authenticateToken, (req, res) => {
+  if (req.user.role !== "student") return res.sendStatus(403);
+  const { study_planner } = req.body;
+  db.prepare("UPDATE students SET study_planner = ? WHERE id = ?").run(
+    JSON.stringify(study_planner),
+    req.user.id,
+  );
   res.json({ success: true });
 });
 

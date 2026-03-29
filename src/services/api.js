@@ -248,4 +248,5 @@ export const api = {
   approveVerification: (id, data) => request(`/teacher/verifications/${id}/approve`, { method: "POST", body: JSON.stringify(data || {}) }),
   rejectVerification: (id) => request(`/teacher/verifications/${id}/reject`, { method: "POST" }),
   gradeAssignment: (id, data) => request(`/teacher/assignments/${id}/grade`, { method: "POST", body: JSON.stringify(data) }),
+  updateStudyPlanner: (data) => request("/student/study-planner", { method: "PUT", body: JSON.stringify({ study_planner: data }) }),
 };
